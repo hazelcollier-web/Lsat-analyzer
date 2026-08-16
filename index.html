@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Question Docket — LSAT LR Analyzer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --paper:#EDEFE9;
+    --card:#FFFFFF;
+    --ink:#20304A;
+    --ink-soft:#5A6B80;
+    --line:#D8D9D2;
+    --brick:#B23A2F;
+    --brick-soft:#F3E1DE;
+    --brass:#8B6F3E;
+    --brass-soft:#EFE7D6;
+    --sage:#4F6B4E;
+    --sage-soft:#E1E9DC;
+    --plum:#6B4E71;
+    --plum-soft:#EBE1EC;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    padding:2.5rem 1.25rem;
+  }
+  .wrap{max-width:760px; margin:0 auto;}
+
+  header{
+    border-bottom:2px solid var(--ink);
+    padding-bottom:1rem;
+    margin-bottom:1.75rem;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:1rem;
+    flex-wrap:wrap;
+  }
+  .kicker{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--brick);
+    margin-bottom:.35rem;
+  }
+  h1{
+    font-family:'Source Serif 4',serif;
+    font-weight:700;
+    font-size:28px;
+    letter-spacing:-.01em;
+  }
+  .docket-no{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    text-align:right;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:1.5rem;
+    margin-bottom:1.5rem;
+    box-shadow:0 1px 2px rgba(32,48,74,0.04);
+  }
+  label.field-label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin-bottom:.6rem;
+  }
+  textarea{
+    width:100%;
+    min-height:170px;
+    font-family:'Source Serif 4',serif;
+    font-size:15px;
+    line-height:1.6;
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:.85rem 1rem;
+    resize:vertical;
+    background:#FCFCFA;
+  }
+  textarea:focus{outline:2px solid var(--brick); outline-offset:-1px;}
+  textarea::placeholder{color:#9AA5B2; font-style:italic;}
+
+  .actions{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:1rem;
+    flex-wrap:wrap;
+    gap:.75rem;
+  }
+  .hint{font-size:12px; color:var(--ink-soft);}
+  button.analyze{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    padding:.7rem 1.4rem;
+    border-radius:2px;
+    cursor:pointer;
+    transition:background .15s;
+  }
+  button.analyze:hover:not(:disabled){background:var(--brick);}
+  button.analyze:disabled{opacity:.5; cursor:not-allowed;}
+
+  .error-box{
+    background:var(--brick-soft);
+    border:1px solid var(--brick);
+    color:var(--brick);
+    font-size:13px;
+    padding:.8rem 1rem;
+    border-radius:2px;
+    margin-bottom:1.5rem;
+  }
+
+  .result{display:none;}
+  .result.show{display:block;}
+
+  .type-stamp{
+    display:inline-flex;
+    align-items:baseline;
+    gap:.5rem;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    padding:.4rem .8rem;
+    border-radius:2px;
+    margin-bottom:1.25rem;
+    transform:rotate(-0.6deg);
+  }
+
+  .section-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin-bottom:.6rem;
+    margin-top:1.5rem;
+  }
+  .section-label:first-of-type{margin-top:0;}
+
+  .annotated{
+    font-family:'Source Serif 4',serif;
+    font-size:15.5px;
+    line-height:2.1;
+  }
+  .tag{
+    padding:.05em .3em;
+    border-radius:2px;
+    position:relative;
+    cursor:default;
+  }
+  .tag::after{
+    content:attr(data-tag);
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    line-height:1;
+    margin-top:1px;
+  }
+  .tag-context{background:var(--brass-soft); color:var(--brass);}
+  .tag-context::after{content:"context"; color:var(--brass);}
+  .tag-premise{background:var(--sage-soft); color:var(--sage);}
+  .tag-premise::after{content:"premise"; color:var(--sage);}
+  .tag-conclusion{background:var(--brick-soft); color:var(--brick); font-weight:600;}
+  .tag-conclusion::after{content:"conclusion"; color:var(--brick);}
+  .tag-subsidiary{background:var(--plum-soft); color:var(--plum);}
+  .tag-subsidiary::after{content:"subsidiary conclusion"; color:var(--plum);}
+  .tag-concession{background:#EEE; color:#777; text-decoration:line-through; text-decoration-color:#bbb;}
+  .tag-concession::after{content:"concession"; color:#888; text-decoration:none;}
+
+  .legend{display:flex; flex-wrap:wrap; gap:.9rem; margin:.9rem 0 0; font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+  .legend span{display:inline-flex; align-items:center; gap:.35rem;}
+  .swatch{width:9px; height:9px; border-radius:1px; display:inline-block;}
+
+  .test-box{
+    background:var(--paper);
+    border-left:3px solid var(--brick);
+    padding:.9rem 1rem;
+    font-size:14px;
+    line-height:1.55;
+  }
+  .test-box strong{color:var(--brick);}
+
+  ol.steps{list-style:none; counter-reset:step;}
+  ol.steps li{
+    counter-increment:step;
+    display:flex;
+    gap:.75rem;
+    padding:.6rem 0;
+    border-bottom:1px solid var(--line);
+    font-size:14.5px;
+    line-height:1.5;
+  }
+  ol.steps li:last-child{border-bottom:none;}
+  ol.steps li::before{
+    content:counter(step);
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:12px;
+    color:var(--brick);
+    border:1px solid var(--brick);
+    border-radius:50%;
+    width:20px; height:20px;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    margin-top:.1rem;
+  }
+
+  ul.traps{list-style:none;}
+  ul.traps li{
+    display:flex;
+    gap:.6rem;
+    font-size:14px;
+    padding:.4rem 0;
+    color:var(--ink-soft);
+  }
+  ul.traps li::before{content:"⚠"; color:var(--brick); flex-shrink:0;}
+
+  .choices{margin-top:.5rem;}
+  .choice-row{
+    display:flex;
+    gap:.75rem;
+    align-items:flex-start;
+    padding:.6rem .75rem;
+    border-radius:2px;
+    margin-bottom:.4rem;
+    font-size:14px;
+    line-height:1.5;
+  }
+  .choice-row.correct{background:var(--sage-soft);}
+  .choice-row.wrong{background:#F5F5F3;}
+  .choice-letter{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:12px;
+    flex-shrink:0;
+    width:1.4em;
+  }
+  .choice-row.correct .choice-letter{color:var(--sage);}
+  .choice-row.wrong .choice-letter{color:var(--ink-soft);}
+  .choice-verdict{font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-family:'IBM Plex Mono',monospace; margin-bottom:2px; display:block;}
+  .choice-row.correct .choice-verdict{color:var(--sage);}
+  .choice-row.wrong .choice-verdict{color:var(--ink-soft);}
+
+  .loading{display:none; align-items:center; gap:.6rem; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); margin-bottom:1.5rem;}
+  .loading.show{display:flex;}
+  .spinner{
+    width:12px; height:12px;
+    border:2px solid var(--line);
+    border-top-color:var(--brick);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .log-card{margin-top:2rem;}
+  .log-title{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-soft); margin-bottom:.85rem;
+  }
+  .tally-grid{display:flex; flex-wrap:wrap; gap:.5rem;}
+  .tally-pill{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:.3rem .7rem;
+    color:var(--ink-soft);
+    background:#FAFAF8;
+  }
+  .tally-pill b{color:var(--ink);}
+  .clear-log{
+    background:none; border:none; color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace; font-size:11px;
+    text-decoration:underline; cursor:pointer; margin-top:.75rem;
+  }
+
+  footer{
+    margin-top:2.5rem;
+    padding-top:1rem;
+    border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:#9AA5B2;
+    text-align:center;
+  }
+
+  @media (max-width:480px){
+    h1{font-size:22px;}
+    .docket-no{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="kicker">Logical Reasoning · Question Docket</div>
+      <h1>Question Docket</h1>
+    </div>
+    <div class="docket-no" id="docket-no">No. 0000</div>
+  </header>
+
+  <div class="card">
+    <label class="field-label" for="q-input">Paste the question — stimulus, question stem, and answer choices if you have them</label>
+    <textarea id="q-input" placeholder="e.g. Nutritionists have noticed that since the fast food boom of the 1980s, there has been a surge in obesity rates. Consequently, almost all of this surge can be attributed to decreased physical activity and changes in dietary habits.
+
+Which one of the following, if true, most weakens the argument?
+
+(A) ...
+(B) ..."></textarea>
+    <div class="actions">
+      <div class="hint">Works with just the stimulus, or the full question with choices.</div>
+      <button class="analyze" id="analyze-btn">Analyze question</button>
+    </div>
+  </div>
+
+  <div class="loading" id="loading"><div class="spinner"></div><span id="loading-text">Reading the stimulus…</span></div>
+  <div class="error-box" id="error-box" style="display:none;"></div>
+
+  <div class="result" id="result">
+    <div class="type-stamp" id="type-stamp"></div>
+
+    <div class="section-label">Structural breakdown</div>
+    <div class="card">
+      <div class="annotated" id="annotated"></div>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--brass);"></span>Context</span>
+        <span><span class="swatch" style="background:var(--sage);"></span>Premise</span>
+        <span><span class="swatch" style="background:var(--plum);"></span>Subsidiary conclusion</span>
+        <span><span class="swatch" style="background:var(--brick);"></span>Conclusion</span>
+        <span><span class="swatch" style="background:#999;"></span>Concession</span>
+      </div>
+    </div>
+
+    <div class="section-label">Identification test</div>
+    <div class="test-box" id="test-box"></div>
+
+    <div class="section-label">How to find the answer — for this question</div>
+    <div class="card"><ol class="steps" id="steps"></ol></div>
+
+    <div class="section-label">Traps to watch for</div>
+    <div class="card"><ul class="traps" id="traps"></ul></div>
+
+    <div id="choices-section" style="display:none;">
+      <div class="section-label">Answer choices</div>
+      <div class="card"><div class="choices" id="choices"></div></div>
+    </div>
+  </div>
+
+  <div class="log-card" id="log-card" style="display:none;">
+    <div class="log-title">Session log — question types seen</div>
+    <div class="tally-grid" id="tally-grid"></div>
+    <button class="clear-log" id="clear-log">Clear log</button>
+  </div>
+
+  <footer>Question Docket — private study tool</footer>
+</div>
+
+<script>
+let sessionLog = [];
+
+function setDocketNo(){
+  document.getElementById('docket-no').textContent = 'No. ' + String(Math.floor(1000 + Math.random()*8999));
+}
+setDocketNo();
+
+function loadLog(){
+  try{
+    const raw = localStorage.getItem('lsat-docket-log');
+    if(raw) sessionLog = JSON.parse(raw);
+  }catch(e){ sessionLog = []; }
+  renderLog();
+}
+function saveLog(){
+  try{ localStorage.setItem('lsat-docket-log', JSON.stringify(sessionLog)); }catch(e){ /* ignore */ }
+}
+function renderLog(){
+  const card = document.getElementById('log-card');
+  if(sessionLog.length === 0){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const tally = {};
+  sessionLog.forEach(t => { tally[t] = (tally[t]||0) + 1; });
+  const grid = document.getElementById('tally-grid');
+  grid.innerHTML = Object.entries(tally)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([type,count]) => `<span class="tally-pill">${type} <b>${count}</b></span>`)
+    .join('');
+}
+document.getElementById('clear-log').onclick = () => {
+  sessionLog = [];
+  saveLog();
+  renderLog();
+};
+loadLog();
+
+const btn = document.getElementById('analyze-btn');
+const loading = document.getElementById('loading');
+const loadingText = document.getElementById('loading-text');
+const errorBox = document.getElementById('error-box');
+const result = document.getElementById('result');
+
+const loadingMsgs = ['Reading the stimulus…','Locating the conclusion…','Checking premise support…','Running the identification test…'];
+
+btn.onclick = async () => {
+  const input = document.getElementById('q-input').value.trim();
+  if(!input){
+    errorBox.style.display = 'block';
+    errorBox.textContent = 'Paste a question first.';
+    return;
+  }
+  errorBox.style.display = 'none';
+  result.classList.remove('show');
+  btn.disabled = true;
+  loading.classList.add('show');
+  let msgIdx = 0;
+  loadingText.textContent = loadingMsgs[0];
+  const msgInterval = setInterval(() => {
+    msgIdx = (msgIdx + 1) % loadingMsgs.length;
+    loadingText.textContent = loadingMsgs[msgIdx];
+  }, 1400);
+
+  try{
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input })
+    });
+    const parsed = await response.json();
+    if(!response.ok){
+      throw new Error(parsed.error || 'Request failed');
+    }
+    renderResult(parsed);
+    sessionLog.push(parsed.question_type);
+    saveLog();
+    renderLog();
+  }catch(err){
+    console.error(err);
+    errorBox.style.display = 'block';
+    errorBox.textContent = 'Something went wrong analyzing that question. Try again, or check the passage is complete.';
+  }finally{
+    clearInterval(msgInterval);
+    loading.classList.remove('show');
+    btn.disabled = false;
+  }
+};
+
+function renderResult(p){
+  document.getElementById('type-stamp').textContent = p.question_type;
+  document.getElementById('annotated').innerHTML = p.annotated_stimulus || '';
+  document.getElementById('test-box').innerHTML = '<strong>Test —</strong> ' + escapeButKeepNone(p.identification_test);
+  document.getElementById('steps').innerHTML = (p.steps||[]).map(s => `<li>${escapeButKeepNone(s)}</li>`).join('');
+  document.getElementById('traps').innerHTML = (p.traps||[]).map(t => `<li>${escapeButKeepNone(t)}</li>`).join('');
+
+  const choicesSection = document.getElementById('choices-section');
+  const choicesEl = document.getElementById('choices');
+  if(p.answer_analysis && p.answer_analysis.length){
+    choicesSection.style.display = 'block';
+    choicesEl.innerHTML = p.answer_analysis.map(c => `
+      <div class="choice-row ${c.verdict === 'correct' ? 'correct' : 'wrong'}">
+        <span class="choice-letter">(${c.letter})</span>
+        <div>
+          <span class="choice-verdict">${c.verdict === 'correct' ? 'Correct' : 'Wrong'}</span>
+          ${escapeButKeepNone(c.reason)}
+        </div>
+      </div>
+    `).join('');
+  } else {
+    choicesSection.style.display = 'none';
+  }
+
+  result.classList.add('show');
+  setDocketNo();
+}
+
+function escapeButKeepNone(s){
+  if(!s) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+</script>
+</body>
+</html>
