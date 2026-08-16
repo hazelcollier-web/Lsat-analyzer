@@ -208,6 +208,35 @@
   }
   .test-box strong{color:var(--brick);}
 
+  .formula-box{
+    background:var(--paper);
+    border-left:3px solid var(--plum);
+    padding:.9rem 1rem;
+  }
+  .formula-generic{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    color:var(--plum);
+    letter-spacing:.01em;
+    padding-bottom:.7rem;
+    margin-bottom:.7rem;
+    border-bottom:1px dashed var(--line);
+  }
+  .formula-applied-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin-bottom:.35rem;
+  }
+  .formula-applied{
+    font-family:'Source Serif 4',serif;
+    font-size:14.5px;
+    line-height:1.55;
+    color:var(--ink);
+  }
+
   ol.steps{list-style:none; counter-reset:step;}
   ol.steps li{
     counter-increment:step;
@@ -365,6 +394,13 @@ Which one of the following, if true, most weakens the argument?
     <div class="section-label">Identification test</div>
     <div class="test-box" id="test-box"></div>
 
+    <div class="section-label">Formula</div>
+    <div class="card formula-box">
+      <div class="formula-generic" id="formula-generic"></div>
+      <div class="formula-applied-label">Applied to this question</div>
+      <div class="formula-applied" id="formula-applied"></div>
+    </div>
+
     <div class="section-label">How to find the answer — for this question</div>
     <div class="card"><ol class="steps" id="steps"></ol></div>
 
@@ -478,6 +514,8 @@ function renderResult(p){
   document.getElementById('type-stamp').textContent = p.question_type;
   document.getElementById('annotated').innerHTML = p.annotated_stimulus || '';
   document.getElementById('test-box').innerHTML = '<strong>Test —</strong> ' + escapeButKeepNone(p.identification_test);
+  document.getElementById('formula-generic').textContent = p.formula || '';
+  document.getElementById('formula-applied').textContent = p.formula_applied || '';
   document.getElementById('steps').innerHTML = (p.steps||[]).map(s => `<li>${escapeButKeepNone(s)}</li>`).join('');
   document.getElementById('traps').innerHTML = (p.traps||[]).map(t => `<li>${escapeButKeepNone(t)}</li>`).join('');
 
