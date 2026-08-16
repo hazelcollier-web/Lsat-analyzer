@@ -13,18 +13,34 @@ const FRAMEWORK = `
 8. Concession — stem: "The author concedes which one of the following?" Concessions are introduced by although/despite/even though/while/notwithstanding, cut against the conclusion, and the author argues past them. Test: does this work against the author's own conclusion? Traps: a premise mistaken for a concession because of hedging language, the conclusion itself mistaken for a concession.
 `;
 
+const FORMULAS = {
+  "Must Be True": "Premises (all true) \u2192 Conclusion must be true. Negate the answer \u2014 if it contradicts a premise, it's correct.",
+  "Strengthen": "Assumption + [new fact] = gap closes \u2192 argument gets stronger.",
+  "Weaken": "Assumption + [new fact] = assumption breaks \u2192 gap reopens \u2192 argument gets weaker.",
+  "Assumption": "Premise + Assumption \u2192 Conclusion. Test: Premise + NOT-Assumption \u2192 Conclusion collapses.",
+  "Flaw": "Premise \u21CF Conclusion, because the argument assumes [X] without justification.",
+  "Premise & Conclusion": "Premise(s) \u2192 Conclusion. Ask \"why should I believe this?\" \u2014 the answer is the premise, the target is the conclusion.",
+  "Context vs. Argument": "Context (sets up topic) + but/however \u2192 Premise \u2192 Conclusion. Removing context doesn't hurt the argument; removing a premise does.",
+  "Concession": "Although/Despite [opposing point] \u2192 Premise \u2192 Conclusion. The concession is acknowledged, never used as support."
+};
+
 const SYSTEM_PROMPT = `You are an LSAT Logical Reasoning tutor helping a student build mechanical, procedural fluency — not vague conceptual explanations. You classify a pasted LR question into exactly one of 8 types and show the structural mechanics, using this framework as your authority for what "correct" and "trap" answers look like for each type:
 ${FRAMEWORK}
+
+Here are the canonical short formulas for each type — use these verbatim as the "formula" field for the identified type:
+${JSON.stringify(FORMULAS, null, 2)}
 
 Rules:
 - Use plain language and concrete framing, not formal logical notation (no "X and Y" — use the actual subject of the passage, e.g. "the researchers" or "Walt").
 - The "annotated_stimulus" field must be the ENTIRE original stimulus text (not the question stem, not answer choices), reproduced verbatim but wrapped with span tags around each clause: <span class="tag tag-context">...</span>, <span class="tag tag-premise">...</span>, <span class="tag tag-subsidiary">...</span> (for a claim that both gives and receives support), <span class="tag tag-conclusion">...</span>, <span class="tag tag-concession">...</span>. Untagged connective words (like "but", "since") can stay outside spans. Every part of the stimulus should be accounted for in some tag.
 - "identification_test" is the specific mechanical test for the identified type, phrased for this exact question (not generic).
+- "formula" is the canonical formula string for the identified type, copied exactly from the list above.
+- "formula_applied" takes that same formula and substitutes in the ACTUAL content of this question in place of each bracketed or generic placeholder (Premise, Conclusion, Assumption, [new fact], [X], [opposing point], etc.) — write it as a single flowing line using the real subject matter, e.g. for a Strengthen question about zebras: "The assumption that stripes evolved for fly protection + [flies land less often on striped surfaces in controlled trials] = gap closes → argument gets stronger." Keep it concise, one to two sentences, and make sure every placeholder from the formula is replaced with something specific to this passage.
 - "steps" are 3-5 concrete, numbered actions for finding the correct answer in THIS specific question — reference the actual content (e.g. "Check whether the answer explains why decomposition being slower in cool climates extends the dating range" not "check if it explains the gap").
 - "traps" are 2-4 specific wrong-answer patterns to watch for, tailored to this question's content where possible.
 - If answer choices (A)-(E) were included in the input, evaluate each briefly in "answer_analysis": [{"letter":"A","verdict":"correct"|"wrong","reason":"one sentence, specific to this passage"}]. If no answer choices were given, omit "answer_analysis" or return an empty array.
 - Respond with ONLY valid JSON, no markdown fences, no preamble. Schema:
-{"question_type": "Must Be True|Strengthen|Weaken|Assumption|Flaw|Premise & Conclusion|Context vs. Argument|Concession", "annotated_stimulus": "...", "identification_test": "...", "steps": ["...", "..."], "traps": ["...", "..."], "answer_analysis": [{"letter":"A","verdict":"wrong","reason":"..."}]}`;
+{"question_type": "Must Be True|Strengthen|Weaken|Assumption|Flaw|Premise & Conclusion|Context vs. Argument|Concession", "annotated_stimulus": "...", "identification_test": "...", "formula": "...", "formula_applied": "...", "steps": ["...", "..."], "traps": ["...", "..."], "answer_analysis": [{"letter":"A","verdict":"wrong","reason":"..."}]}`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -53,7 +69,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 1000,
+        max_tokens: 1500,
         system: SYSTEM_PROMPT,
         messages: [{ role: 'user', content: input.slice(0, 6000) }]
       })
