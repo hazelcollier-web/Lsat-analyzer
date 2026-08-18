@@ -352,6 +352,35 @@
     font-family:'IBM Plex Mono',monospace; font-size:11px;
     text-decoration:underline; cursor:pointer; margin-top:.75rem;
   }
+  .tally-pill.clickable{cursor:pointer; transition:border-color .15s, background .15s;}
+  .tally-pill.clickable:hover{border-color:var(--ink); background:#fff;}
+
+  .history-item{
+    padding:.9rem 0;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .history-item:last-child{border-bottom:none;}
+  .history-item:hover .history-snippet{color:var(--ink);}
+  .history-date{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:.35rem;
+  }
+  .history-snippet{
+    font-family:'Source Serif 4',serif;
+    font-size:14.5px;
+    line-height:1.5;
+    color:var(--ink-soft);
+  }
+  .history-empty{
+    font-size:13px;
+    color:var(--ink-soft);
+    padding:1rem 0;
+  }
 
   footer{
     margin-top:2.5rem;
@@ -629,12 +658,22 @@ Which one of the following, if true, most weakens the argument?
     </div>
 
     <div class="phase-actions">
+      <button class="ghost-btn" id="back-to-history-btn" style="display:none;">← Back to saved questions</button>
       <button class="primary-btn" id="new-question-btn">Analyze another question</button>
     </div>
   </div>
 
+  <!-- PHASE 4: history list for a given type -->
+  <div class="phase" id="phase-history">
+    <div class="section-label" id="history-title">Saved questions</div>
+    <div class="card"><div id="history-list"></div></div>
+    <div class="phase-actions">
+      <button class="ghost-btn" id="history-back-btn">← Back</button>
+    </div>
+  </div>
+
   <div class="log-card" id="log-card" style="display:none;">
-    <div class="log-title">Session log — question types seen</div>
+    <div class="log-title">Session log — question types seen (tap a count to review)</div>
     <div class="tally-grid" id="tally-grid"></div>
     <button class="clear-log" id="clear-log">Clear log</button>
   </div>
@@ -666,21 +705,37 @@ function shuffle(arr){
   return a;
 }
 
-let sessionLog = [];
+let sessionLog = []; // array of {id, question_type, timestamp, result}
 let currentResult = null;
 let assignments = {}; // segmentId -> tag
 let activeSlot = null;
+let historyType = null; // which type is currently being browsed in phase-history
 
 function setDocketNo(){
   document.getElementById('docket-no').textContent = 'No. ' + String(Math.floor(1000 + Math.random()*8999));
 }
 setDocketNo();
 
+function makeId(){
+  return 'q_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+}
+
 function loadLog(){
   try{
     const raw = localStorage.getItem('lsat-docket-log');
-    if(raw) sessionLog = JSON.parse(raw);
+    if(raw){
+      const parsed = JSON.parse(raw);
+      // Backward-compat: older versions stored an array of plain type strings.
+      sessionLog = parsed.map(entry =>
+        typeof entry === 'string' ? { id: makeId(), question_type: entry, timestamp: Date.now(), result: null } : entry
+      );
+    }
   }catch(e){ sessionLog = []; }
+  renderLog();
+}
+function addLogEntry(result){
+  sessionLog.push({ id: makeId(), question_type: result.question_type, timestamp: Date.now(), result });
+  saveLog();
   renderLog();
 }
 function saveLog(){
@@ -691,18 +746,64 @@ function renderLog(){
   if(sessionLog.length === 0){ card.style.display = 'none'; return; }
   card.style.display = 'block';
   const tally = {};
-  sessionLog.forEach(t => { tally[t] = (tally[t]||0) + 1; });
+  sessionLog.forEach(entry => { tally[entry.question_type] = (tally[entry.question_type]||0) + 1; });
   const grid = document.getElementById('tally-grid');
-  grid.innerHTML = Object.entries(tally)
+  grid.innerHTML = '';
+  Object.entries(tally)
     .sort((a,b)=>b[1]-a[1])
-    .map(([type,count]) => `<span class="tally-pill">${type} <b>${count}</b></span>`)
-    .join('');
+    .forEach(([type,count]) => {
+      const pill = document.createElement('button');
+      pill.className = 'tally-pill clickable';
+      pill.innerHTML = `${type} <b>${count}</b>`;
+      pill.onclick = () => openHistory(type);
+      grid.appendChild(pill);
+    });
 }
 document.getElementById('clear-log').onclick = () => {
   sessionLog = [];
   saveLog();
   renderLog();
 };
+
+// ---------- Browsing saved questions by type ----------
+function openHistory(type){
+  historyType = type;
+  document.getElementById('history-title').textContent = type + ' — saved questions';
+  const list = document.getElementById('history-list');
+  const entries = sessionLog.filter(e => e.question_type === type).sort((a,b) => b.timestamp - a.timestamp);
+
+  if(entries.length === 0){
+    list.innerHTML = '<div class="history-empty">No saved questions of this type yet.</div>';
+  } else {
+    list.innerHTML = '';
+    entries.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'history-item';
+      const dateStr = new Date(entry.timestamp).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      const snippet = entry.result && entry.result.segments
+        ? entry.result.segments.map(s => s.text).join(' ').slice(0, 140) + '…'
+        : '(older entry — no saved detail)';
+      row.innerHTML = `<div class="history-date">${dateStr}</div><div class="history-snippet">${escapeButKeepNone(snippet)}</div>`;
+      row.onclick = () => {
+        if(!entry.result){
+          alert('This question was saved before the archive feature was added, so its full analysis wasn\'t kept — only the type. Newer questions will have the full detail.');
+          return;
+        }
+        viewArchivedEntry(entry);
+      };
+      list.appendChild(row);
+    });
+  }
+  showPhase('phase-history');
+}
+document.getElementById('history-back-btn').onclick = () => showPhase('phase-input');
+
+function viewArchivedEntry(entry){
+  renderRevealUI(entry.result);
+  document.getElementById('back-to-history-btn').style.display = 'inline-block';
+  document.getElementById('back-to-history-btn').onclick = () => openHistory(historyType);
+  showPhase('phase-reveal');
+}
 loadLog();
 
 function showPhase(id){
@@ -952,8 +1053,7 @@ document.getElementById('check-sort-btn').onclick = () => {
 };
 
 // ---------- PHASE 3: full reveal ----------
-function revealFull(){
-  const p = currentResult;
+function renderRevealUI(p){
   document.getElementById('type-stamp').textContent = p.question_type;
 
   const annotated = (p.segments || []).map(seg =>
@@ -982,11 +1082,14 @@ function revealFull(){
   } else {
     choicesSection.style.display = 'none';
   }
-
-  sessionLog.push(p.question_type);
-  saveLog();
-  renderLog();
   setDocketNo();
+}
+
+function revealFull(){
+  const p = currentResult;
+  renderRevealUI(p);
+  document.getElementById('back-to-history-btn').style.display = 'none';
+  addLogEntry(p);
   showPhase('phase-reveal');
 }
 
