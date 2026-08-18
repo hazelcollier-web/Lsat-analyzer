@@ -520,6 +520,15 @@
     margin-top:.3rem;
     display:block;
   }
+  .chip-reason{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    line-height:1.45;
+    color:var(--ink-soft);
+    margin-top:.4rem;
+    display:block;
+    font-style:italic;
+  }
 
   .sort-hint{font-size:12px; color:var(--ink-soft); margin-bottom:.85rem;}
   .sort-score{
@@ -1034,6 +1043,9 @@ document.getElementById('check-sort-btn').onclick = () => {
     let html = escapeButKeepNone(seg.text) + `<span class="chip-tagline">${TAG_LABEL[userTag] || userTag}</span>`;
     if(!isRight){
       html += `<span class="chip-correction">Correct role: ${TAG_LABEL[seg.tag]}</span>`;
+    }
+    if(seg.reason){
+      html += `<span class="chip-reason">${escapeButKeepNone(seg.reason)}</span>`;
     }
     div.innerHTML = html;
     list.appendChild(div);
