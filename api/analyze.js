@@ -32,7 +32,7 @@ ${JSON.stringify(FORMULAS, null, 2)}
 
 Rules:
 - Use plain language and concrete framing, not formal logical notation (no "X and Y" — use the actual subject of the passage, e.g. "the researchers" or "Walt").
-- The "annotated_stimulus" field must be the ENTIRE original stimulus text (not the question stem, not answer choices), reproduced verbatim but wrapped with span tags around each clause: <span class="tag tag-context">...</span>, <span class="tag tag-premise">...</span>, <span class="tag tag-subsidiary">...</span> (for a claim that both gives and receives support), <span class="tag tag-conclusion">...</span>, <span class="tag tag-concession">...</span>. Untagged connective words (like "but", "since") can stay outside spans. Every part of the stimulus should be accounted for in some tag.
+- The "segments" field must break the ENTIRE original stimulus text (not the question stem, not answer choices) into an ordered array of clause-level pieces that together reconstruct the full stimulus verbatim when concatenated with spaces. Each segment is {"id": "s1", "text": "...", "tag": "context"|"premise"|"subsidiary"|"conclusion"|"concession"}. Connective words (like "but", "since") can be attached to the following clause rather than standing alone. Every part of the stimulus must be covered by exactly one segment.
 - "identification_test" is the specific mechanical test for the identified type, phrased for this exact question (not generic).
 - "formula" is the canonical formula string for the identified type, copied exactly from the list above.
 - "formula_applied" takes that same formula and substitutes in the ACTUAL content of this question in place of each bracketed or generic placeholder (Premise, Conclusion, Assumption, [new fact], [X], [opposing point], etc.) — write it as a single flowing line using the real subject matter, e.g. for a Strengthen question about zebras: "The assumption that stripes evolved for fly protection + [flies land less often on striped surfaces in controlled trials] = gap closes → argument gets stronger." Keep it concise, one to two sentences, and make sure every placeholder from the formula is replaced with something specific to this passage.
@@ -40,7 +40,7 @@ Rules:
 - "traps" are 2-4 specific wrong-answer patterns to watch for, tailored to this question's content where possible.
 - If answer choices (A)-(E) were included in the input, evaluate each briefly in "answer_analysis": [{"letter":"A","verdict":"correct"|"wrong","reason":"one sentence, specific to this passage"}]. If no answer choices were given, omit "answer_analysis" or return an empty array.
 - Respond with ONLY valid JSON, no markdown fences, no preamble. Schema:
-{"question_type": "Must Be True|Strengthen|Weaken|Assumption|Flaw|Premise & Conclusion|Context vs. Argument|Concession", "annotated_stimulus": "...", "identification_test": "...", "formula": "...", "formula_applied": "...", "steps": ["...", "..."], "traps": ["...", "..."], "answer_analysis": [{"letter":"A","verdict":"wrong","reason":"..."}]}`;
+{"question_type": "Must Be True|Strengthen|Weaken|Assumption|Flaw|Premise & Conclusion|Context vs. Argument|Concession", "segments": [{"id":"s1","text":"...","tag":"context"}], "identification_test": "...", "formula": "...", "formula_applied": "...", "steps": ["...", "..."], "traps": ["...", "..."], "answer_analysis": [{"letter":"A","verdict":"wrong","reason":"..."}]}`;
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
