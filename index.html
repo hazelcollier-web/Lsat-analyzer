@@ -959,10 +959,10 @@ function beginSortExercise(){
   document.getElementById('type-stamp-sort').textContent = currentResult.question_type;
   document.getElementById('formula-generic-sort').textContent = currentResult.formula || '';
 
-  const tagsPresent = [...new Set((currentResult.segments || []).map(s => s.tag))];
+  const allTags = ['context', 'premise', 'subsidiary', 'conclusion', 'concession'];
   const slotRow = document.getElementById('slot-row');
   slotRow.innerHTML = '';
-  tagsPresent.forEach(tag => {
+  allTags.forEach(tag => {
     const b = document.createElement('button');
     b.className = 'slot-btn slot-' + tag;
     b.textContent = TAG_LABEL[tag] || tag;
@@ -1082,6 +1082,7 @@ function renderRevealUI(p){
   } else {
     choicesSection.style.display = 'none';
   }
+
   setDocketNo();
 }
 
