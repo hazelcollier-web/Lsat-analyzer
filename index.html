@@ -643,7 +643,7 @@ Which one of the following, if true, most weakens the argument?
 </div>
 
 <script>
-const TYPES = ["Must Be True","Strengthen","Weaken","Assumption","Flaw","Premise & Conclusion","Context vs. Argument","Concession"];
+const TYPES = ["Must Be True","Strengthen","Weaken","Assumption","Flaw","Premise & Conclusion","Context vs. Argument","Concession","Parallel Reasoning"];
 const TAG_LABEL = {context:"Context", premise:"Premise", subsidiary:"Subsidiary conclusion", conclusion:"Conclusion", concession:"Concession"};
 const FORMULAS = {
   "Must Be True": "Premises (all true) \u2192 Conclusion must be true. Negate the answer \u2014 if it contradicts a premise, it's correct.",
@@ -653,7 +653,8 @@ const FORMULAS = {
   "Flaw": "Premise \u21CF Conclusion, because the argument assumes [X] without justification.",
   "Premise & Conclusion": "Premise(s) \u2192 Conclusion. Ask \"why should I believe this?\" \u2014 the answer is the premise, the target is the conclusion.",
   "Context vs. Argument": "Context (sets up topic) + but/however \u2192 Premise \u2192 Conclusion. Removing context doesn't hurt the argument; removing a premise does.",
-  "Concession": "Although/Despite [opposing point] \u2192 Premise \u2192 Conclusion. The concession is acknowledged, never used as support."
+  "Concession": "Although/Despite [opposing point] \u2192 Premise \u2192 Conclusion. The concession is acknowledged, never used as support.",
+  "Parallel Reasoning": "Original argument's structure (premise types + logical connectors + conclusion strength) \u2192 find the answer choice with the identical skeleton, regardless of subject matter."
 };
 
 function shuffle(arr){
