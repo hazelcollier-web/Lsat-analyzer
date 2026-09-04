@@ -528,6 +528,35 @@
 
   .phase-actions{display:flex; justify-content:flex-end; gap:.6rem; margin-top:1rem; flex-wrap:wrap;}
 
+  .map-slot-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    padding:.5rem .8rem;
+    border-radius:20px;
+    border:1.5px solid var(--ink);
+    color:var(--ink);
+    cursor:pointer;
+    background:#fff;
+  }
+  .map-slot-btn.active{background:var(--ink); color:var(--paper);}
+  .map-slot-btn.filled{border-color:var(--sage); color:var(--sage);}
+  .map-slot-btn.filled.active{background:var(--sage); color:#fff;}
+  .map-slot-btn:disabled{opacity:.4; cursor:not-allowed;}
+
+  .chip-source-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:#B8AEB2;
+    margin-bottom:.25rem;
+    display:block;
+  }
+  .chip.map-assigned{border-left:4px solid var(--ink); opacity:1;}
+  .chip.map-assigned .chip-tagline{color:var(--ink);}
+
   .history-item{
     padding:.9rem 0;
     border-bottom:1px solid var(--line);
@@ -638,6 +667,25 @@ Which one of the following, if true, most weakens the argument?
     <div class="phase-actions">
       <button class="ghost-btn" id="reset-sort-btn">Clear sorting</button>
       <button class="primary-btn" id="check-sort-btn" disabled>Check my sorting</button>
+    </div>
+  </div>
+
+  <!-- PHASE 2.5: fill in the formula -->
+  <div class="phase" id="phase-map">
+    <div class="type-stamp" id="type-stamp-map"></div>
+    <div class="section-label">Step 4 — Fill in the formula</div>
+    <div class="card formula-box">
+      <div class="formula-generic" id="formula-generic-map"></div>
+    </div>
+    <div class="card">
+      <div class="sort-hint">Tap a blank below, then tap the piece of the question that fills it. Not every sentence or answer choice needs to be used.</div>
+      <div class="slot-row" id="map-slot-row"></div>
+      <div class="chip-list" id="map-chip-list"></div>
+      <div class="sort-score" id="map-score"></div>
+    </div>
+    <div class="phase-actions">
+      <button class="ghost-btn" id="reset-map-btn">Clear mapping</button>
+      <button class="primary-btn" id="check-map-btn" disabled>Check my mapping</button>
     </div>
   </div>
 
@@ -1047,6 +1095,146 @@ document.getElementById('check-sort-btn').onclick = () => {
   scoreBox.className = 'sort-score show';
   scoreBox.textContent = `You sorted ${correctCount} of ${total} sentences correctly.`;
   document.getElementById('check-sort-btn').disabled = true;
+
+  const revealBtn = document.createElement('button');
+  revealBtn.className = 'primary-btn';
+  revealBtn.style.marginTop = '1rem';
+  revealBtn.textContent = 'Continue to formula mapping →';
+  revealBtn.onclick = beginFormulaMapping;
+  scoreBox.appendChild(document.createElement('br'));
+  scoreBox.appendChild(revealBtn);
+};
+
+// ---------- PHASE 2.5: fill in the formula ----------
+let mapAssignments = {}; // chipId -> slot label
+let activeMapSlot = null;
+
+function getAllCandidates(){
+  const candidates = [];
+  (currentResult.segments || []).forEach(seg => {
+    candidates.push({ id: seg.id, text: seg.text, source: 'stimulus' });
+  });
+  (currentResult.answer_choices || []).forEach(ac => {
+    candidates.push({ id: ac.letter, text: `(${ac.letter}) ${ac.text}`, source: 'answer_choice' });
+  });
+  return candidates;
+}
+
+function beginFormulaMapping(){
+  mapAssignments = {};
+  activeMapSlot = null;
+
+  document.getElementById('type-stamp-map').textContent = currentResult.question_type;
+  document.getElementById('formula-generic-map').textContent = currentResult.formula || '';
+
+  const slots = currentResult.formula_slots || [];
+  const slotRow = document.getElementById('map-slot-row');
+  slotRow.innerHTML = '';
+  slots.forEach(slot => {
+    const b = document.createElement('button');
+    b.className = 'map-slot-btn';
+    b.textContent = slot.label;
+    b.dataset.label = slot.label;
+    b.onclick = () => selectMapSlot(slot.label, b);
+    slotRow.appendChild(b);
+  });
+
+  renderMapChips();
+  document.getElementById('map-score').className = 'sort-score';
+  document.getElementById('check-map-btn').disabled = slots.length === 0;
+  showPhase('phase-map');
+}
+
+function selectMapSlot(label, btnEl){
+  document.querySelectorAll('.map-slot-btn').forEach(b => b.classList.remove('active'));
+  if(activeMapSlot === label){
+    activeMapSlot = null;
+  } else {
+    activeMapSlot = label;
+    btnEl.classList.add('active');
+  }
+}
+
+function renderMapChips(){
+  const list = document.getElementById('map-chip-list');
+  list.innerHTML = '';
+  getAllCandidates().forEach(cand => {
+    const div = document.createElement('div');
+    const assignedLabel = mapAssignments[cand.id];
+    div.className = 'chip' + (assignedLabel ? ' map-assigned' : '');
+    div.innerHTML = `<span class="chip-source-tag">${cand.source === 'stimulus' ? 'Stimulus' : 'Answer choice'}</span>` +
+      escapeButKeepNone(cand.text) +
+      (assignedLabel ? `<span class="chip-tagline">${escapeButKeepNone(assignedLabel)}</span>` : '');
+    div.onclick = () => assignMapChip(cand.id);
+    list.appendChild(div);
+  });
+  updateMapSlotButtons();
+}
+
+function assignMapChip(candId){
+  if(!activeMapSlot) return;
+  // Clear this label off any other chip first (one filler per slot).
+  Object.keys(mapAssignments).forEach(id => {
+    if(mapAssignments[id] === activeMapSlot) delete mapAssignments[id];
+  });
+  mapAssignments[candId] = activeMapSlot;
+  renderMapChips();
+}
+
+function updateMapSlotButtons(){
+  const filledLabels = new Set(Object.values(mapAssignments));
+  document.querySelectorAll('.map-slot-btn').forEach(b => {
+    b.classList.toggle('filled', filledLabels.has(b.dataset.label));
+  });
+  const totalSlots = (currentResult.formula_slots || []).length;
+  document.getElementById('check-map-btn').disabled = filledLabels.size < totalSlots;
+}
+
+document.getElementById('reset-map-btn').onclick = () => {
+  mapAssignments = {};
+  activeMapSlot = null;
+  document.getElementById('map-score').className = 'sort-score';
+  renderMapChips();
+};
+
+document.getElementById('check-map-btn').onclick = () => {
+  const slots = currentResult.formula_slots || [];
+  let correctCount = 0;
+  const list = document.getElementById('map-chip-list');
+  list.innerHTML = '';
+
+  getAllCandidates().forEach(cand => {
+    const div = document.createElement('div');
+    const assignedLabel = mapAssignments[cand.id];
+    const correctSlot = slots.find(s => s.ref === cand.id);
+    const shouldBeAssigned = !!correctSlot;
+    const isRight = shouldBeAssigned ? (assignedLabel === correctSlot.label) : !assignedLabel;
+
+    if(isRight) correctCount++;
+
+    let cls = 'chip';
+    if(assignedLabel || shouldBeAssigned) cls += ' map-assigned';
+    cls += isRight ? ' graded-correct' : ' graded-wrong';
+
+    let html = `<span class="chip-source-tag">${cand.source === 'stimulus' ? 'Stimulus' : 'Answer choice'}</span>` + escapeButKeepNone(cand.text);
+    if(assignedLabel){
+      html += `<span class="chip-tagline">Your answer: ${escapeButKeepNone(assignedLabel)}</span>`;
+    }
+    if(!isRight){
+      html += shouldBeAssigned
+        ? `<span class="chip-correction">Correct: fills "${escapeButKeepNone(correctSlot.label)}"</span>`
+        : `<span class="chip-correction">Correct: doesn't fill any slot</span>`;
+    }
+    div.className = cls;
+    div.innerHTML = html;
+    list.appendChild(div);
+  });
+
+  const total = getAllCandidates().length;
+  const scoreBox = document.getElementById('map-score');
+  scoreBox.className = 'sort-score show';
+  scoreBox.textContent = `You mapped ${correctCount} of ${total} pieces correctly.`;
+  document.getElementById('check-map-btn').disabled = true;
 
   const revealBtn = document.createElement('button');
   revealBtn.className = 'primary-btn';
