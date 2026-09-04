@@ -528,34 +528,84 @@
 
   .phase-actions{display:flex; justify-content:flex-end; gap:.6rem; margin-top:1rem; flex-wrap:wrap;}
 
-  .map-slot-btn{
+  .equation-row{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    gap:.6rem;
+  }
+  .eq-box-wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    min-width:150px;
+    flex:1 1 150px;
+  }
+  .eq-connector{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:20px;
+    color:var(--ink-soft);
+    align-self:center;
+    padding:1.9rem .2rem 0;
+    flex:0 0 auto;
+  }
+  .eq-label{
     font-family:'IBM Plex Mono',monospace;
     font-size:11px;
     text-transform:uppercase;
-    letter-spacing:.04em;
-    padding:.5rem .8rem;
-    border-radius:20px;
-    border:1.5px solid var(--ink);
+    letter-spacing:.05em;
     color:var(--ink);
-    cursor:pointer;
-    background:#fff;
+    margin-bottom:.4rem;
+    text-align:center;
   }
-  .map-slot-btn.active{background:var(--ink); color:var(--paper);}
-  .map-slot-btn.filled{border-color:var(--sage); color:var(--sage);}
-  .map-slot-btn.filled.active{background:var(--sage); color:#fff;}
-  .map-slot-btn:disabled{opacity:.4; cursor:not-allowed;}
-
-  .chip-source-tag{
+  .eq-input{
+    width:100%;
+    min-height:80px;
+    font-family:'Source Serif 4',serif;
+    font-size:13.5px;
+    line-height:1.5;
+    padding:.6rem .7rem;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    background:#FCFCFA;
+    resize:vertical;
+  }
+  .eq-input:focus{outline:2px solid var(--brick); outline-offset:-1px;}
+  .eq-reveal{
+    margin-top:.6rem;
+    width:100%;
+    font-size:12.5px;
+    line-height:1.45;
+    padding:.6rem .7rem;
+    border-radius:6px;
+    background:var(--sage-soft);
+    color:var(--ink);
+    display:none;
+  }
+  .eq-reveal.show{display:block;}
+  .eq-reveal-label{
     font-family:'IBM Plex Mono',monospace;
-    font-size:9px;
+    font-size:9.5px;
     text-transform:uppercase;
     letter-spacing:.05em;
-    color:#B8AEB2;
+    color:var(--sage);
+    display:block;
     margin-bottom:.25rem;
+  }
+  .eq-source-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-top:.3rem;
     display:block;
   }
-  .chip.map-assigned{border-left:4px solid var(--ink); opacity:1;}
-  .chip.map-assigned .chip-tagline{color:var(--ink);}
+  @media (max-width:600px){
+    .equation-row{flex-direction:column; align-items:stretch;}
+    .eq-connector{align-self:flex-start; padding:.2rem 0;}
+    .eq-box-wrap{min-width:0;}
+  }
 
   .history-item{
     padding:.9rem 0;
@@ -674,18 +724,26 @@ Which one of the following, if true, most weakens the argument?
   <div class="phase" id="phase-map">
     <div class="type-stamp" id="type-stamp-map"></div>
     <div class="section-label">Step 4 — Fill in the formula</div>
-    <div class="card formula-box">
-      <div class="formula-generic" id="formula-generic-map"></div>
-    </div>
     <div class="card">
-      <div class="sort-hint">Tap a blank below, then tap the piece of the question that fills it. Not every sentence or answer choice needs to be used.</div>
-      <div class="slot-row" id="map-slot-row"></div>
-      <div class="chip-list" id="map-chip-list"></div>
-      <div class="sort-score" id="map-score"></div>
+      <div class="sort-hint">Type what you think fills each box, based on the passage. Then reveal what we found.</div>
+      <div class="equation-row" id="equation-row"></div>
     </div>
     <div class="phase-actions">
-      <button class="ghost-btn" id="reset-map-btn">Clear mapping</button>
-      <button class="primary-btn" id="check-map-btn" disabled>Check my mapping</button>
+      <button class="primary-btn" id="reveal-map-btn">Reveal what fills each box</button>
+    </div>
+  </div>
+
+  <!-- PHASE 2.7: choose the correct answer -->
+  <div class="phase" id="phase-choose">
+    <div class="type-stamp" id="type-stamp-choose"></div>
+    <div class="section-label">Step 5 — Choose the correct answer</div>
+    <div class="card">
+      <div class="hint" style="margin-bottom:1rem;">Based on everything so far, which answer choice is correct?</div>
+      <div class="formula-choice-list" id="choose-answer-list"></div>
+      <div class="guess-feedback" id="choose-feedback"></div>
+    </div>
+    <div class="phase-actions">
+      <button class="primary-btn" id="to-reveal-btn" disabled>Reveal full analysis →</button>
     </div>
   </div>
 
@@ -1106,144 +1164,111 @@ document.getElementById('check-sort-btn').onclick = () => {
 };
 
 // ---------- PHASE 2.5: fill in the formula ----------
-let mapAssignments = {}; // chipId -> slot label
-let activeMapSlot = null;
-
-function getAllCandidates(){
-  const candidates = [];
-  (currentResult.segments || []).forEach(seg => {
-    candidates.push({ id: seg.id, text: seg.text, source: 'stimulus' });
-  });
-  (currentResult.answer_choices || []).forEach(ac => {
-    candidates.push({ id: ac.letter, text: `(${ac.letter}) ${ac.text}`, source: 'answer_choice' });
-  });
-  return candidates;
-}
-
 function beginFormulaMapping(){
-  mapAssignments = {};
-  activeMapSlot = null;
-
   document.getElementById('type-stamp-map').textContent = currentResult.question_type;
-  document.getElementById('formula-generic-map').textContent = currentResult.formula || '';
 
   const slots = currentResult.formula_slots || [];
-  const slotRow = document.getElementById('map-slot-row');
-  slotRow.innerHTML = '';
-  slots.forEach(slot => {
-    const b = document.createElement('button');
-    b.className = 'map-slot-btn';
-    b.textContent = slot.label;
-    b.dataset.label = slot.label;
-    b.onclick = () => selectMapSlot(slot.label, b);
-    slotRow.appendChild(b);
+  const row = document.getElementById('equation-row');
+  row.innerHTML = '';
+
+  slots.forEach((slot, i) => {
+    if(i > 0 || slot.connector_before){
+      const conn = document.createElement('div');
+      conn.className = 'eq-connector';
+      conn.textContent = slot.connector_before || '';
+      if(slot.connector_before) row.appendChild(conn);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'eq-box-wrap';
+
+    const label = document.createElement('div');
+    label.className = 'eq-label';
+    label.textContent = slot.label;
+    wrap.appendChild(label);
+
+    const input = document.createElement('textarea');
+    input.className = 'eq-input';
+    input.dataset.index = i;
+    input.placeholder = 'Type your answer…';
+    wrap.appendChild(input);
+
+    const reveal = document.createElement('div');
+    reveal.className = 'eq-reveal';
+    reveal.id = 'eq-reveal-' + i;
+    let sourceNote = '';
+    if(slot.source === 'stimulus') sourceNote = 'From the stimulus';
+    else if(slot.source === 'answer_choice') sourceNote = 'From answer choice ' + slot.ref;
+    reveal.innerHTML = `<span class="eq-reveal-label">What we found</span>${escapeButKeepNone(slot.expected_text || '')}` +
+      (sourceNote ? `<span class="eq-source-note">${sourceNote}</span>` : '');
+    wrap.appendChild(reveal);
+
+    row.appendChild(wrap);
   });
 
-  renderMapChips();
-  document.getElementById('map-score').className = 'sort-score';
-  document.getElementById('check-map-btn').disabled = slots.length === 0;
+  const revealBtn = document.getElementById('reveal-map-btn');
+  revealBtn.textContent = 'Reveal what fills each box';
+  revealBtn.onclick = revealMapAnswers;
   showPhase('phase-map');
 }
 
-function selectMapSlot(label, btnEl){
-  document.querySelectorAll('.map-slot-btn').forEach(b => b.classList.remove('active'));
-  if(activeMapSlot === label){
-    activeMapSlot = null;
-  } else {
-    activeMapSlot = label;
-    btnEl.classList.add('active');
+function revealMapAnswers(){
+  document.querySelectorAll('.eq-reveal').forEach(el => el.classList.add('show'));
+  const revealBtn = document.getElementById('reveal-map-btn');
+  revealBtn.textContent = 'Continue →';
+  revealBtn.onclick = beginChooseAnswer;
+}
+
+// ---------- PHASE 2.7: choose the correct answer ----------
+function beginChooseAnswer(){
+  const choices = currentResult.answer_choices || [];
+  if(choices.length === 0){
+    // Nothing to choose between — skip straight to the reveal.
+    revealFull();
+    return;
   }
-}
 
-function renderMapChips(){
-  const list = document.getElementById('map-chip-list');
+  document.getElementById('type-stamp-choose').textContent = currentResult.question_type;
+  const list = document.getElementById('choose-answer-list');
   list.innerHTML = '';
-  getAllCandidates().forEach(cand => {
-    const div = document.createElement('div');
-    const assignedLabel = mapAssignments[cand.id];
-    div.className = 'chip' + (assignedLabel ? ' map-assigned' : '');
-    div.innerHTML = `<span class="chip-source-tag">${cand.source === 'stimulus' ? 'Stimulus' : 'Answer choice'}</span>` +
-      escapeButKeepNone(cand.text) +
-      (assignedLabel ? `<span class="chip-tagline">${escapeButKeepNone(assignedLabel)}</span>` : '');
-    div.onclick = () => assignMapChip(cand.id);
-    list.appendChild(div);
+  choices.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'formula-choice-btn';
+    b.textContent = `(${c.letter}) ${c.text}`;
+    b.onclick = () => handleChooseAnswer(c.letter, b);
+    list.appendChild(b);
   });
-  updateMapSlotButtons();
+  document.getElementById('choose-feedback').className = 'guess-feedback';
+  document.getElementById('to-reveal-btn').disabled = true;
+  document.getElementById('to-reveal-btn').onclick = revealFull;
+  showPhase('phase-choose');
 }
 
-function assignMapChip(candId){
-  if(!activeMapSlot) return;
-  // Clear this label off any other chip first (one filler per slot).
-  Object.keys(mapAssignments).forEach(id => {
-    if(mapAssignments[id] === activeMapSlot) delete mapAssignments[id];
-  });
-  mapAssignments[candId] = activeMapSlot;
-  renderMapChips();
-}
+function handleChooseAnswer(chosenLetter, btnEl){
+  const analysis = currentResult.answer_analysis || [];
+  const correctEntry = analysis.find(a => a.verdict === 'correct');
+  const isRight = correctEntry && correctEntry.letter === chosenLetter;
 
-function updateMapSlotButtons(){
-  const filledLabels = new Set(Object.values(mapAssignments));
-  document.querySelectorAll('.map-slot-btn').forEach(b => {
-    b.classList.toggle('filled', filledLabels.has(b.dataset.label));
-  });
-  const totalSlots = (currentResult.formula_slots || []).length;
-  document.getElementById('check-map-btn').disabled = filledLabels.size < totalSlots;
-}
+  document.querySelectorAll('#choose-answer-list .formula-choice-btn').forEach(b => b.disabled = true);
+  const feedback = document.getElementById('choose-feedback');
 
-document.getElementById('reset-map-btn').onclick = () => {
-  mapAssignments = {};
-  activeMapSlot = null;
-  document.getElementById('map-score').className = 'sort-score';
-  renderMapChips();
-};
-
-document.getElementById('check-map-btn').onclick = () => {
-  const slots = currentResult.formula_slots || [];
-  let correctCount = 0;
-  const list = document.getElementById('map-chip-list');
-  list.innerHTML = '';
-
-  getAllCandidates().forEach(cand => {
-    const div = document.createElement('div');
-    const assignedLabel = mapAssignments[cand.id];
-    const correctSlot = slots.find(s => s.ref === cand.id);
-    const shouldBeAssigned = !!correctSlot;
-    const isRight = shouldBeAssigned ? (assignedLabel === correctSlot.label) : !assignedLabel;
-
-    if(isRight) correctCount++;
-
-    let cls = 'chip';
-    if(assignedLabel || shouldBeAssigned) cls += ' map-assigned';
-    cls += isRight ? ' graded-correct' : ' graded-wrong';
-
-    let html = `<span class="chip-source-tag">${cand.source === 'stimulus' ? 'Stimulus' : 'Answer choice'}</span>` + escapeButKeepNone(cand.text);
-    if(assignedLabel){
-      html += `<span class="chip-tagline">Your answer: ${escapeButKeepNone(assignedLabel)}</span>`;
+  if(isRight){
+    btnEl.classList.add('chosen-correct');
+    feedback.className = 'guess-feedback show correct';
+    feedback.textContent = 'Correct — that\'s the right answer.';
+  } else {
+    btnEl.classList.add('chosen-wrong');
+    if(correctEntry){
+      document.querySelectorAll('#choose-answer-list .formula-choice-btn').forEach(b => {
+        if(b.textContent.startsWith(`(${correctEntry.letter})`)) b.classList.add('reveal-correct');
+      });
     }
-    if(!isRight){
-      html += shouldBeAssigned
-        ? `<span class="chip-correction">Correct: fills "${escapeButKeepNone(correctSlot.label)}"</span>`
-        : `<span class="chip-correction">Correct: doesn't fill any slot</span>`;
-    }
-    div.className = cls;
-    div.innerHTML = html;
-    list.appendChild(div);
-  });
-
-  const total = getAllCandidates().length;
-  const scoreBox = document.getElementById('map-score');
-  scoreBox.className = 'sort-score show';
-  scoreBox.textContent = `You mapped ${correctCount} of ${total} pieces correctly.`;
-  document.getElementById('check-map-btn').disabled = true;
-
-  const revealBtn = document.createElement('button');
-  revealBtn.className = 'primary-btn';
-  revealBtn.style.marginTop = '1rem';
-  revealBtn.textContent = 'Reveal full analysis →';
-  revealBtn.onclick = revealFull;
-  scoreBox.appendChild(document.createElement('br'));
-  scoreBox.appendChild(revealBtn);
-};
+    feedback.className = 'guess-feedback show wrong';
+    feedback.textContent = correctEntry
+      ? `Not quite — (${correctEntry.letter}) is correct, highlighted above.`
+      : 'Not quite.';
+  }
+  document.getElementById('to-reveal-btn').disabled = false;
+}
 
 // ---------- PHASE 3: full reveal ----------
 function renderRevealUI(p){
