@@ -183,6 +183,20 @@
     line-height:1.75;
     color:var(--ink);
   }
+  .question-stem-text{
+    font-family:'Source Serif 4',serif;
+    font-size:14px;
+    line-height:1.6;
+    font-style:italic;
+    color:var(--ink-soft);
+  }
+  .reference-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:1.1rem 1.25rem;
+    margin-bottom:1.5rem;
+  }
 
   .annotated{
     font-family:'Source Serif 4',serif;
@@ -770,7 +784,8 @@ Which one of the following, if true, most weakens the argument?
   <div class="phase" id="phase-type">
     <div class="section-label">Step 1 — What question type is this?</div>
     <div class="card">
-      <div class="stimulus-plain" id="plain-stimulus" style="margin-bottom:1.25rem;"></div>
+      <div class="stimulus-plain" id="plain-stimulus" style="margin-bottom:.75rem;"></div>
+      <div class="question-stem-text" id="plain-question-stem" style="margin-bottom:1.25rem;"></div>
       <div id="type-groups"></div>
       <div class="guess-feedback" id="guess-feedback"></div>
     </div>
@@ -821,6 +836,12 @@ Which one of the following, if true, most weakens the argument?
   <!-- PHASE 2.5: fill in the formula -->
   <div class="phase" id="phase-map">
     <div class="type-stamp" id="type-stamp-map"></div>
+
+    <div class="reference-card">
+      <div class="stimulus-plain" id="plain-stimulus-map" style="margin-bottom:.6rem;"></div>
+      <div class="question-stem-text" id="plain-question-stem-map"></div>
+    </div>
+
     <div class="section-label">Step 4 — Fill in the formula</div>
     <div class="card">
       <div class="sort-hint">Type what you think fills each box, based on the passage. Then reveal what we found.</div>
@@ -1178,6 +1199,7 @@ function beginTypeQuiz(){
   currentTypeGuessCorrect = null;
   currentAnswerCorrect = null;
   document.getElementById('plain-stimulus').textContent = (currentResult.segments || []).map(s => s.text).join(' ');
+  document.getElementById('plain-question-stem').textContent = currentResult.question_stem || '';
 
   const groupsEl = document.getElementById('type-groups');
   groupsEl.innerHTML = '';
@@ -1385,6 +1407,8 @@ document.getElementById('check-sort-btn').onclick = () => {
 // ---------- PHASE 2.5: fill in the formula ----------
 function beginFormulaMapping(){
   document.getElementById('type-stamp-map').textContent = currentResult.question_type;
+  document.getElementById('plain-stimulus-map').textContent = (currentResult.segments || []).map(s => s.text).join(' ');
+  document.getElementById('plain-question-stem-map').textContent = currentResult.question_stem || '';
 
   const slots = currentResult.formula_slots || [];
   const row = document.getElementById('equation-row');
