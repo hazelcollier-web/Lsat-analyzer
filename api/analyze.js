@@ -31,12 +31,12 @@ const FORMULAS = {
   "Sufficient Assumption": "Premise + [Sufficient Assumption] \u2192 Conclusion is GUARANTEED. Test: does adding this answer make the conclusion airtight?",
   "Necessary Assumption": "Premise + Assumption \u2192 Conclusion. Test: Premise + NOT-Assumption \u2192 Conclusion collapses.",
   "Paradox": "Fact A + Fact B (seem to conflict) + [explanation] \u2192 both true at once, no real contradiction.",
-  "Evaluate": "Ask [Question] \u2192 Answer YES vs NO \u2192 argument's strength changes either way. Test: does the answer swing the argument?",
+  "Evaluate": "Premise + Conclusion (the gap between them) \u2192 [Question] that directly tests whether that gap holds. Test: does a \"yes\" AND a \"no\" answer actually change the argument's strength?",
   "Conclusion": "Premise(s) \u2192 Conclusion. Ask \"why should I believe this?\" \u2014 the answer is the premise, the target is the conclusion.",
   "Must Be True": "Premises (all true) \u2192 Conclusion must be true. Negate the answer \u2014 if it contradicts a premise, it's correct.",
-  "Supported": "Premises \u2192 the BEST-supported inference among the choices, even if not airtight. Test: which choice has the strongest textual backing?",
+  "Supported": "Premise's exact scope or certainty (e.g. \"most,\" \"tends to,\" a specific stat) \u2192 Answer matching that same scope, not stronger. Test: does the answer overreach what the premise's own wording actually supports?",
   "Flaw": "Premise \u21CF Conclusion, because the argument assumes [X] without justification.",
-  "Reasoning": "Argument uses [technique] to move from premise to conclusion \u2192 correct answer names that technique neutrally, without judging it.",
+  "Reasoning": "Premise + Conclusion, connected by [technique] (e.g. citing an example, drawing an analogy) \u2192 correct answer names that technique neutrally, without judging it.",
   "Disagree": "Speaker A affirms [X]; Speaker B denies [X] \u2192 correct answer is the exact claim they'd answer oppositely.",
   "Parallel": "Original argument's structure (premise types + logical connectors + conclusion strength) \u2192 find the answer choice with the identical skeleton, regardless of subject matter."
 };
