@@ -1,29 +1,959 @@
-// This function runs on Vercel's server, never in the visitor's browser.
-// The ANTHROPIC_API_KEY environment variable is read here only —
-// it is never sent to or visible from the frontend.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Question Docket — LSAT LR Analyzer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&display=swap');
 
-const FRAMEWORK = `
-Question types are grouped into two families:
+  :root{
+    --paper:#FBEEF3;
+    --card:#FFFFFF;
+    --ink:#1B2340;
+    --ink-soft:#7A6670;
+    --line:#EAD3DC;
+    --brick:#C2185B;
+    --brick-soft:#F6D9E5;
+    --brass:#D4789F;
+    --brass-soft:#FBE6EE;
+    --sage:#5C7FA3;
+    --sage-soft:#DCE6EF;
+    --plum:#7D1F3D;
+    --plum-soft:#EEDCE1;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    font-family:'Inter',system-ui,sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    min-height:100vh;
+    padding:2.5rem 1.25rem;
+  }
+  .wrap{max-width:760px; margin:0 auto;}
 
-OPEN — the correct answer introduces NEW information not stated in the stimulus:
+  header{
+    border-bottom:2px solid var(--ink);
+    padding-bottom:1rem;
+    margin-bottom:1.75rem;
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+    gap:1rem;
+    flex-wrap:wrap;
+  }
+  .kicker{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    color:var(--brick);
+    margin-bottom:.35rem;
+  }
+  h1{
+    font-family:'Source Serif 4',serif;
+    font-weight:700;
+    font-size:28px;
+    letter-spacing:-.01em;
+  }
+  .docket-no{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    color:var(--ink-soft);
+    text-align:right;
+  }
 
-1. Weaken — stem: "...which most seriously weakens the argument?" Correct answers make the argument's assumption false/less plausible or introduce an unaccounted-for alternative. Test: does this make the assumption false or open a plausible alternative? Traps: weakens context not the argument, attacks a straw man, true-but-irrelevant.
-2. Strengthen — stem: "...which most strengthens the argument?" Correct answers make the argument's assumption true/more plausible or eliminate an alternative explanation. Test: does this make the assumption more reasonable, or close the gap? Traps: strengthens context/background instead of the argument, restates a premise, strengthens a subsidiary point not the main conclusion.
-3. Sufficient Assumption — stem: "Which one of the following, if assumed, enables the conclusion to be properly/logically drawn?" Correct answers, when added to the stated premises, GUARANTEE the conclusion — they close the entire logical gap on their own, not just support it. Test: mentally add the answer as a new premise — does the conclusion now follow with 100% certainty? Often solved by finding the mismatched terms between premises and conclusion and looking for the answer that bridges them. Traps: an answer that's necessary but not sufficient (helps, but doesn't fully close the gap alone), an answer too narrow to guarantee the full conclusion, an answer that just restates a premise.
-4. Necessary Assumption — stem: "The argument depends on assuming which one of the following?" Correct answers are unstated, required for the premises to support the conclusion, and fail the negation test (destroy the argument if false). Test: negate the answer — if the argument collapses, it's the assumption. Traps: a restated premise, a true-but-not-load-bearing claim, an assumption for a different argument.
-5. Paradox — stem: "Which one of the following, if true, most helps to resolve the apparent discrepancy/paradox described above?" The stimulus presents two facts that seem to conflict. Correct answers explain how both facts can be true at the same time, without denying either one. Test: does this answer make the two facts compatible, rather than picking a side? Traps: an answer that only addresses one side of the paradox, an answer that deepens the conflict instead of resolving it, an answer irrelevant to the specific tension described.
-6. Evaluate — stem: "Which one of the following would it be most useful to know in order to evaluate the argument?" Correct answers are questions where either possible answer (yes or no) would change how convincing the argument is. Test (the "Variance Test"): plug in both a "yes" and a "no" answer to the proposed question — does the argument's strength meaningfully shift either way? Traps: a question whose answer wouldn't change the argument's strength either way, a question already answered by the stimulus.
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:1.5rem;
+    margin-bottom:1.5rem;
+    box-shadow:0 1px 2px rgba(32,48,74,0.04);
+  }
+  label.field-label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin-bottom:.6rem;
+  }
+  textarea{
+    width:100%;
+    min-height:170px;
+    font-family:'Source Serif 4',serif;
+    font-size:15px;
+    line-height:1.6;
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:.85rem 1rem;
+    resize:vertical;
+    background:#FCFCFA;
+  }
+  textarea:focus{outline:2px solid var(--brick); outline-offset:-1px;}
+  textarea::placeholder{color:#9AA5B2; font-style:italic;}
 
-CLOSED — the correct answer sticks to what's already in the stimulus, no outside information:
+  .actions{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:1rem;
+    flex-wrap:wrap;
+    gap:.75rem;
+  }
+  .hint{font-size:12px; color:var(--ink-soft);}
+  button.primary-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    background:var(--ink);
+    color:var(--paper);
+    border:none;
+    padding:.7rem 1.4rem;
+    border-radius:2px;
+    cursor:pointer;
+    transition:background .15s;
+  }
+  button.primary-btn:hover:not(:disabled){background:var(--brick);}
+  button.primary-btn:disabled{opacity:.45; cursor:not-allowed;}
 
-7. Conclusion — stem: "Which one of the following most accurately expresses the conclusion of the argument?" Conclusion receives support and supports nothing else (except subsidiary conclusions, which do both). Test: "why should I believe this claim?" — if other claims answer that, it's the conclusion. Traps: mistaking the subsidiary conclusion for the main one, mistaking context for the conclusion.
-8. Must Be True — stem: "Which one of the following must be true...?" Correct answers follow necessarily from every premise taken together and add no new information — the support is airtight, logically certain. Test: negate the answer; if negating it doesn't contradict a premise, eliminate it. Traps: real-world-true-but-not-provable, overstated/understated paraphrases, "probably true" dressed up as certain.
-9. Supported (Most Strongly Supported) — stem: "Which one of the following is most supported by the information above?" Similar to Must Be True but looser: the correct answer doesn't need to be airtight-certain, just the most reasonable, best-backed inference among the choices — often involving probabilistic or statistical language ("most," "likely," "tends to"). Test: which choice has the strongest direct textual backing, even if it falls short of ironclad proof? Traps: an answer that overreaches the evidence (claims more certainty than the passage supports), an answer that sounds plausible but has weaker textual grounding than a better choice.
-10. Flaw — stem: "The reasoning in the argument is flawed because the argument..." Correct answers name what the argument assumed without justification or describe the specific logical error (e.g. correlation ≠ causation, hasty generalization) present in THIS argument. Test: does this describe exactly what went wrong between these premises and this conclusion? Traps: a generic flaw label that could apply to any argument, an accurate criticism of the topic rather than the logic, a flaw that isn't actually present.
-11. Reasoning (Method of Reasoning) — stem: "Which one of the following most accurately describes [the author's] method/technique of reasoning?" Correct answers give a NEUTRAL, abstract description of HOW the argument is built (e.g. "citing a specific counterexample," "appealing to consequences," "generalizing from a sample," "attacking the source of a claim") — without judging whether that technique is good or bad. Test: does this describe the argument's structure/technique accurately, without slipping into evaluating whether it's flawed? Traps: a description that's evaluative rather than neutral (reads like a Flaw answer), a description of a technique the argument doesn't actually use, a description too vague/generic to distinguish this argument from others.
-12. Disagree (Point at Issue) — stem: "[Person A] and [Person B] disagree over which one of the following?" Two speakers are given. Correct answers name a specific claim that one speaker would affirm and the other would deny. Test: would both speakers give a definite, opposite answer (yes vs. no) to this exact claim? Traps: a claim only one speaker actually addresses (the other's view is unstated), a topic both speakers might actually agree on, a claim broader or narrower than their actual point of contention.
-13. Parallel — stem: "Which one of the following arguments has a pattern of reasoning most similar to (or most parallel to) the reasoning in the argument above?" Correct answers replicate the ORIGINAL argument's abstract logical structure — same type and number of premises, same logical connectors, same strength of conclusion (certain vs. probable) — regardless of subject matter. Test: strip out the subject matter and compare the skeleton structure of each choice to the original. Traps: same topic or vocabulary as the original but a different structure, similar surface phrasing but a different number of premises or a different logical connector.
-`;
+  button.ghost-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    background:none;
+    color:var(--ink-soft);
+    border:1px solid var(--line);
+    padding:.55rem 1rem;
+    border-radius:2px;
+    cursor:pointer;
+  }
+  button.ghost-btn:hover{border-color:var(--ink); color:var(--ink);}
+
+  .error-box{
+    background:var(--brick-soft);
+    border:1px solid var(--brick);
+    color:var(--brick);
+    font-size:13px;
+    padding:.8rem 1rem;
+    border-radius:2px;
+    margin-bottom:1.5rem;
+  }
+
+  .phase{display:none;}
+  .phase.show{display:block;}
+
+  .type-stamp{
+    display:inline-flex;
+    align-items:baseline;
+    gap:.5rem;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    font-weight:600;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    padding:.4rem .8rem;
+    border-radius:2px;
+    margin-bottom:1.25rem;
+    transform:rotate(-0.6deg);
+  }
+
+  .section-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin-bottom:.6rem;
+    margin-top:1.5rem;
+  }
+  .section-label:first-of-type{margin-top:0;}
+
+  .stimulus-plain{
+    font-family:'Source Serif 4',serif;
+    font-size:15.5px;
+    line-height:1.75;
+    color:var(--ink);
+  }
+  .question-stem-text{
+    font-family:'Source Serif 4',serif;
+    font-size:14px;
+    line-height:1.6;
+    font-style:italic;
+    color:var(--ink-soft);
+  }
+  .reference-card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:2px;
+    padding:1.1rem 1.25rem;
+    margin-bottom:1.5rem;
+  }
+
+  .annotated{
+    font-family:'Source Serif 4',serif;
+    font-size:15.5px;
+    line-height:2.1;
+  }
+  .tag{
+    padding:.05em .3em;
+    border-radius:2px;
+    position:relative;
+    cursor:default;
+  }
+  .tag::after{
+    content:attr(data-tag);
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    line-height:1;
+    margin-top:1px;
+  }
+  .tag-context{background:var(--brass-soft); color:var(--brass);}
+  .tag-context::after{content:"context"; color:var(--brass);}
+  .tag-premise{background:var(--sage-soft); color:var(--sage);}
+  .tag-premise::after{content:"premise"; color:var(--sage);}
+  .tag-conclusion{background:var(--brick-soft); color:var(--brick); font-weight:600;}
+  .tag-conclusion::after{content:"conclusion"; color:var(--brick);}
+  .tag-subsidiary{background:var(--plum-soft); color:var(--plum);}
+  .tag-subsidiary::after{content:"subsidiary conclusion"; color:var(--plum);}
+  .tag-concession{background:#EEE; color:#777; text-decoration:line-through; text-decoration-color:#bbb;}
+  .tag-concession::after{content:"concession"; color:#888; text-decoration:none;}
+
+  .legend{display:flex; flex-wrap:wrap; gap:.9rem; margin:.9rem 0 0; font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+  .legend span{display:inline-flex; align-items:center; gap:.35rem;}
+  .swatch{width:9px; height:9px; border-radius:1px; display:inline-block;}
+
+  .test-box{
+    background:var(--paper);
+    border-left:3px solid var(--brick);
+    padding:.9rem 1rem;
+    font-size:14px;
+    line-height:1.55;
+  }
+  .test-box strong{color:var(--brick);}
+
+  .formula-box{
+    background:var(--paper);
+    border-left:3px solid var(--plum);
+    padding:.9rem 1rem;
+  }
+  .formula-generic{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    color:var(--plum);
+    letter-spacing:.01em;
+    padding-bottom:.7rem;
+    margin-bottom:.7rem;
+    border-bottom:1px dashed var(--line);
+  }
+  .formula-plain{
+    font-family:'Source Serif 4',serif;
+    font-size:13.5px;
+    line-height:1.5;
+    color:var(--ink);
+    font-style:italic;
+    padding-bottom:.7rem;
+    margin-bottom:.7rem;
+    border-bottom:1px dashed var(--line);
+  }
+  .formula-applied-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin-bottom:.35rem;
+  }
+  .formula-applied{
+    font-family:'Source Serif 4',serif;
+    font-size:14.5px;
+    line-height:1.55;
+    color:var(--ink);
+  }
+
+  ol.steps{list-style:none; counter-reset:step;}
+  ol.steps li{
+    counter-increment:step;
+    display:flex;
+    gap:.75rem;
+    padding:.6rem 0;
+    border-bottom:1px solid var(--line);
+    font-size:14.5px;
+    line-height:1.5;
+  }
+  ol.steps li:last-child{border-bottom:none;}
+  ol.steps li::before{
+    content:counter(step);
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:12px;
+    color:var(--brick);
+    border:1px solid var(--brick);
+    border-radius:50%;
+    width:20px; height:20px;
+    flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    margin-top:.1rem;
+  }
+
+  ul.traps{list-style:none;}
+  ul.traps li{
+    display:flex;
+    gap:.6rem;
+    font-size:14px;
+    padding:.4rem 0;
+    color:var(--ink-soft);
+  }
+  ul.traps li::before{content:"⚠"; color:var(--brick); flex-shrink:0;}
+
+  .choices{margin-top:.5rem;}
+  .choice-row{
+    display:flex;
+    gap:.75rem;
+    align-items:flex-start;
+    padding:.6rem .75rem;
+    border-radius:2px;
+    margin-bottom:.4rem;
+    font-size:14px;
+    line-height:1.5;
+  }
+  .choice-row.correct{background:var(--sage-soft);}
+  .choice-row.wrong{background:#F5F5F3;}
+  .choice-letter{
+    font-family:'IBM Plex Mono',monospace;
+    font-weight:600;
+    font-size:12px;
+    flex-shrink:0;
+    width:1.4em;
+  }
+  .choice-row.correct .choice-letter{color:var(--sage);}
+  .choice-row.wrong .choice-letter{color:var(--ink-soft);}
+  .choice-verdict{font-size:11px; text-transform:uppercase; letter-spacing:.05em; font-family:'IBM Plex Mono',monospace; margin-bottom:2px; display:block;}
+  .choice-row.correct .choice-verdict{color:var(--sage);}
+  .choice-row.wrong .choice-verdict{color:var(--ink-soft);}
+
+  .loading{display:none; align-items:center; gap:.6rem; font-family:'IBM Plex Mono',monospace; font-size:12px; color:var(--ink-soft); margin-bottom:1.5rem;}
+  .loading.show{display:flex;}
+  .spinner{
+    width:12px; height:12px;
+    border:2px solid var(--line);
+    border-top-color:var(--brick);
+    border-radius:50%;
+    animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .log-card{margin-top:2rem;}
+  .log-title{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--ink-soft); margin-bottom:.85rem;
+  }
+  .tally-grid{display:flex; flex-wrap:wrap; gap:.5rem;}
+  .tally-pill{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    border:1px solid var(--line);
+    border-radius:20px;
+    padding:.3rem .7rem;
+    color:var(--ink-soft);
+    background:#FAFAF8;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .tally-pill:hover{border-color:var(--ink); background:#fff;}
+  .tally-pill b{color:var(--ink);}
+  .clear-log{
+    background:none; border:none; color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace; font-size:11px;
+    text-decoration:underline; cursor:pointer;
+  }
+  .log-actions-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:.85rem;
+    flex-wrap:wrap;
+    gap:.6rem;
+  }
+
+  .perf-row{
+    display:grid;
+    grid-template-columns:1.4fr .7fr 1fr 1fr;
+    gap:.5rem;
+    align-items:center;
+    padding:.7rem 0;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .perf-row:last-child{border-bottom:none;}
+  .perf-row.perf-header{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--ink-soft);
+  }
+  .perf-type{font-family:'Inter',sans-serif; font-weight:600;}
+  .perf-count{font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+  .perf-metric{font-family:'IBM Plex Mono',monospace; font-weight:600;}
+  .perf-metric.perf-strong{color:var(--sage);}
+  .perf-metric.perf-weak{color:var(--brick);}
+  .perf-metric.perf-mid{color:var(--ink);}
+  .perf-metric.perf-none{color:#B8AEB2; font-weight:400;}
+  @media (max-width:520px){
+    .perf-row{grid-template-columns:1.2fr .6fr .8fr .8fr; font-size:12px;}
+  }
+
+  footer{
+    margin-top:2.5rem;
+    padding-top:1rem;
+    border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:#9AA5B2;
+    text-align:center;
+  }
+
+  /* --- Quiz: type guess --- */
+  .type-group-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:.08em;
+    color:var(--ink-soft);
+    margin:1rem 0 .5rem;
+  }
+  .type-group-label:first-child{margin-top:0;}
+  .type-group-sub{font-weight:400; text-transform:none; letter-spacing:0; color:#9AA5B2;}
+  .type-grid{
+    display:grid;
+    grid-template-columns:repeat(2, 1fr);
+    gap:.6rem;
+  }
+  @media (max-width:520px){ .type-grid{grid-template-columns:1fr;} }
+  .type-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    text-align:left;
+    padding:.75rem .9rem;
+    border:1px solid var(--line);
+    background:#FCFCFA;
+    border-radius:2px;
+    cursor:pointer;
+    color:var(--ink);
+    transition:border-color .15s, background .15s;
+  }
+  .type-btn:hover:not(:disabled){border-color:var(--ink);}
+  .type-btn:disabled{cursor:default;}
+  .type-btn.chosen-correct{background:var(--sage-soft); border-color:var(--sage); color:var(--sage);}
+  .type-btn.chosen-wrong{background:var(--brick-soft); border-color:var(--brick); color:var(--brick);}
+  .type-btn.reveal-correct{background:var(--sage-soft); border-color:var(--sage); color:var(--sage);}
+
+  .guess-feedback{
+    margin-top:1rem;
+    font-size:13.5px;
+    padding:.75rem 1rem;
+    border-radius:2px;
+    display:none;
+  }
+  .guess-feedback.show{display:block;}
+  .guess-feedback.correct{background:var(--sage-soft); color:var(--sage);}
+  .guess-feedback.wrong{background:var(--brick-soft); color:var(--brick);}
+
+  .formula-choice-list{display:flex; flex-direction:column; gap:.6rem;}
+  .formula-choice-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    line-height:1.5;
+    text-align:left;
+    padding:.8rem .95rem;
+    border:1px solid var(--line);
+    background:#FCFCFA;
+    border-radius:2px;
+    cursor:pointer;
+    color:var(--ink);
+    transition:border-color .15s, background .15s;
+  }
+  .formula-choice-btn:hover:not(:disabled){border-color:var(--ink);}
+  .formula-choice-btn:disabled{cursor:default;}
+  .formula-choice-btn.chosen-correct{background:var(--sage-soft); border-color:var(--sage); color:var(--sage);}
+  .formula-choice-btn.chosen-wrong{background:var(--brick-soft); border-color:var(--brick); color:var(--brick);}
+  .formula-choice-btn.reveal-correct{background:var(--sage-soft); border-color:var(--sage); color:var(--sage);}
+
+  /* --- Quiz: sorting exercise --- */
+  .slot-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:.5rem;
+    margin-bottom:1.25rem;
+  }
+  .slot-btn{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    padding:.5rem .8rem;
+    border-radius:20px;
+    border:1.5px solid;
+    cursor:pointer;
+    background:#fff;
+  }
+  .slot-context{border-color:var(--brass); color:var(--brass);}
+  .slot-premise{border-color:var(--sage); color:var(--sage);}
+  .slot-subsidiary{border-color:var(--plum); color:var(--plum);}
+  .slot-conclusion{border-color:var(--brick); color:var(--brick);}
+  .slot-concession{border-color:#999; color:#777;}
+  .slot-btn.active{color:#fff;}
+  .slot-context.active{background:var(--brass);}
+  .slot-premise.active{background:var(--sage);}
+  .slot-subsidiary.active{background:var(--plum);}
+  .slot-conclusion.active{background:var(--brick);}
+  .slot-concession.active{background:#888;}
+  .slot-btn:disabled{opacity:.4; cursor:not-allowed;}
+
+  .chip-list{display:flex; flex-direction:column; gap:.5rem;}
+  .chip{
+    font-family:'Source Serif 4',serif;
+    font-size:14.5px;
+    line-height:1.5;
+    padding:.7rem .85rem;
+    border:1px solid var(--line);
+    border-radius:2px;
+    background:#FCFCFA;
+    cursor:pointer;
+    transition:border-color .15s, background .15s;
+  }
+  .chip.selected{border-color:var(--ink); border-width:2px; background:#fff;}
+  .chip.assigned{opacity:.75;}
+  .chip-tagline{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    margin-top:.3rem;
+    display:block;
+  }
+  .chip.assign-context{border-left:4px solid var(--brass);}
+  .chip.assign-context .chip-tagline{color:var(--brass);}
+  .chip.assign-premise{border-left:4px solid var(--sage);}
+  .chip.assign-premise .chip-tagline{color:var(--sage);}
+  .chip.assign-subsidiary{border-left:4px solid var(--plum);}
+  .chip.assign-subsidiary .chip-tagline{color:var(--plum);}
+  .chip.assign-conclusion{border-left:4px solid var(--brick);}
+  .chip.assign-conclusion .chip-tagline{color:var(--brick);}
+  .chip.assign-concession{border-left:4px solid #888;}
+  .chip.assign-concession .chip-tagline{color:#888;}
+  .chip.graded-correct{background:var(--sage-soft);}
+  .chip.graded-wrong{background:var(--brick-soft);}
+  .chip-correction{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    color:var(--brick);
+    margin-top:.3rem;
+    display:block;
+  }
+  .chip-reason{
+    font-family:'Inter',sans-serif;
+    font-size:12.5px;
+    line-height:1.45;
+    color:var(--ink-soft);
+    margin-top:.4rem;
+    display:block;
+    font-style:italic;
+  }
+
+  .sort-hint{font-size:12px; color:var(--ink-soft); margin-bottom:.85rem;}
+  .sort-score{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:13px;
+    margin-top:1rem;
+    padding:.75rem 1rem;
+    background:var(--paper);
+    border-radius:2px;
+    display:none;
+  }
+  .sort-score.show{display:block;}
+
+  .phase-actions{display:flex; justify-content:flex-end; gap:.6rem; margin-top:1rem; flex-wrap:wrap;}
+
+  .equation-row{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:flex-start;
+    gap:.6rem;
+  }
+  .eq-box-wrap{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    min-width:150px;
+    flex:1 1 150px;
+  }
+  .eq-connector{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:20px;
+    color:var(--ink-soft);
+    align-self:center;
+    padding:1.9rem .2rem 0;
+    flex:0 0 auto;
+  }
+  .eq-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--ink);
+    margin-bottom:.4rem;
+    text-align:center;
+  }
+  .eq-input{
+    width:100%;
+    min-height:80px;
+    font-family:'Source Serif 4',serif;
+    font-size:13.5px;
+    line-height:1.5;
+    padding:.6rem .7rem;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    background:#FCFCFA;
+    resize:vertical;
+  }
+  .eq-input:focus{outline:2px solid var(--brick); outline-offset:-1px;}
+  .eq-reveal{
+    margin-top:.6rem;
+    width:100%;
+    font-size:12.5px;
+    line-height:1.45;
+    padding:.6rem .7rem;
+    border-radius:6px;
+    background:var(--sage-soft);
+    color:var(--ink);
+    display:none;
+  }
+  .eq-reveal.show{display:block;}
+  .eq-reveal-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--sage);
+    display:block;
+    margin-bottom:.25rem;
+  }
+  .eq-source-note{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-top:.3rem;
+    display:block;
+  }
+  @media (max-width:600px){
+    .equation-row{flex-direction:column; align-items:stretch;}
+    .eq-connector{align-self:flex-start; padding:.2rem 0;}
+    .eq-box-wrap{min-width:0;}
+  }
+
+  .reasoning-item{
+    padding:1rem 0;
+    border-bottom:1px solid var(--line);
+  }
+  .reasoning-item:last-child{border-bottom:none;}
+  .reasoning-choice-text{
+    font-family:'Source Serif 4',serif;
+    font-size:14.5px;
+    line-height:1.55;
+    color:var(--ink);
+    margin-bottom:.6rem;
+  }
+  .reasoning-choice-text b{
+    font-family:'IBM Plex Mono',monospace;
+    color:var(--plum);
+  }
+  .reasoning-input{
+    width:100%;
+    min-height:60px;
+    font-family:'Source Serif 4',serif;
+    font-size:13.5px;
+    line-height:1.5;
+    padding:.6rem .7rem;
+    border:1.5px solid var(--line);
+    border-radius:6px;
+    background:#FCFCFA;
+    resize:vertical;
+  }
+  .reasoning-input:focus{outline:2px solid var(--brick); outline-offset:-1px;}
+  .reasoning-reveal{
+    margin-top:.6rem;
+    font-size:12.5px;
+    line-height:1.45;
+    padding:.6rem .7rem;
+    border-radius:6px;
+    display:none;
+  }
+  .reasoning-reveal.show{display:block;}
+  .reasoning-reveal.reasoning-correct{background:var(--sage-soft); color:var(--ink);}
+  .reasoning-reveal.reasoning-wrong{background:#F5F5F3; color:var(--ink);}
+  .reasoning-reveal-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    display:block;
+    margin-bottom:.25rem;
+  }
+  .reasoning-reveal.reasoning-correct .reasoning-reveal-label{color:var(--sage);}
+  .reasoning-reveal.reasoning-wrong .reasoning-reveal-label{color:var(--ink-soft);}
+
+  .history-item{
+    padding:.9rem 0;
+    border-bottom:1px solid var(--line);
+    cursor:pointer;
+  }
+  .history-item:last-child{border-bottom:none;}
+  .history-date{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    color:var(--ink-soft);
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:.35rem;
+  }
+  .history-snippet{
+    font-family:'Source Serif 4',serif;
+    font-size:14.5px;
+    line-height:1.5;
+    color:var(--ink-soft);
+  }
+  .history-empty{
+    font-size:13px;
+    color:var(--ink-soft);
+    padding:1rem 0;
+  }
+
+  @media (max-width:480px){
+    h1{font-size:22px;}
+    .docket-no{text-align:left;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <div class="kicker">Logical Reasoning · Question Docket</div>
+      <h1>Question Docket</h1>
+    </div>
+    <div class="docket-no" id="docket-no">No. 0000</div>
+  </header>
+
+  <!-- PHASE 0: input -->
+  <div class="phase show" id="phase-input">
+    <div class="card">
+      <label class="field-label" for="q-input">Paste the question — stimulus, question stem, and answer choices if you have them</label>
+      <textarea id="q-input" placeholder="e.g. Nutritionists have noticed that since the fast food boom of the 1980s, there has been a surge in obesity rates. Consequently, almost all of this surge can be attributed to decreased physical activity and changes in dietary habits.
+
+Which one of the following, if true, most weakens the argument?
+
+(A) ...
+(B) ..."></textarea>
+      <div class="actions">
+        <div class="hint">Works with just the stimulus, or the full question with choices.</div>
+        <button class="primary-btn" id="start-btn">Start practice</button>
+      </div>
+    </div>
+    <div class="loading" id="loading"><div class="spinner"></div><span id="loading-text">Reading the stimulus…</span></div>
+    <div class="error-box" id="error-box" style="display:none;"></div>
+  </div>
+
+  <!-- PHASE 1: guess the type -->
+  <div class="phase" id="phase-type">
+    <div class="section-label">Step 1 — What question type is this?</div>
+    <div class="card">
+      <div class="stimulus-plain" id="plain-stimulus" style="margin-bottom:.75rem;"></div>
+      <div class="question-stem-text" id="plain-question-stem" style="margin-bottom:1.25rem;"></div>
+      <div id="type-groups"></div>
+      <div class="guess-feedback" id="guess-feedback"></div>
+    </div>
+    <div class="phase-actions">
+      <button class="primary-btn" id="to-formula-btn" disabled>Continue to formula →</button>
+    </div>
+  </div>
+
+  <!-- PHASE 1.5: guess the formula -->
+  <div class="phase" id="phase-formula">
+    <div class="type-stamp" id="type-stamp-formula"></div>
+    <div class="section-label">Step 2 — Which formula matches this type?</div>
+    <div class="card">
+      <div class="hint" style="margin-bottom:1rem;">Pick the formula that correctly describes how this question type works.</div>
+      <div class="formula-choice-list" id="formula-choice-list"></div>
+      <div class="guess-feedback" id="formula-feedback"></div>
+    </div>
+    <div class="phase-actions">
+      <button class="primary-btn" id="to-sort-btn" disabled>Continue to sorting →</button>
+    </div>
+  </div>
+
+  <!-- PHASE 2: formula + sorting -->
+  <div class="phase" id="phase-sort">
+    <div class="type-stamp" id="type-stamp-sort"></div>
+
+    <div class="section-label">Formula (confirmed)</div>
+    <div class="card formula-box">
+      <div class="formula-generic" id="formula-generic-sort"></div>
+      <div class="formula-plain" id="formula-plain-sort"></div>
+      <div class="hint">This is the shape the correct answer needs to fit. Now sort the passage into it.</div>
+    </div>
+
+    <div class="section-label">Step 3 — Sort the passage into its parts</div>
+    <div class="card">
+      <div class="sort-hint">Tap a role below, then tap the sentence(s) that belong to it. Every sentence needs a role before you check your work.</div>
+      <div class="slot-row" id="slot-row"></div>
+      <div class="chip-list" id="chip-list"></div>
+      <div class="sort-score" id="sort-score"></div>
+    </div>
+
+    <div class="phase-actions">
+      <button class="ghost-btn" id="reset-sort-btn">Clear sorting</button>
+      <button class="primary-btn" id="check-sort-btn" disabled>Check my sorting</button>
+    </div>
+  </div>
+
+  <!-- PHASE 2.5: fill in the formula -->
+  <div class="phase" id="phase-map">
+    <div class="type-stamp" id="type-stamp-map"></div>
+
+    <div class="reference-card">
+      <div class="stimulus-plain" id="plain-stimulus-map" style="margin-bottom:.6rem;"></div>
+      <div class="question-stem-text" id="plain-question-stem-map"></div>
+    </div>
+
+    <div class="section-label">Step 4 — Fill in the formula</div>
+    <div class="card">
+      <div class="sort-hint">Type what you think fills each box, based on the passage. Then reveal what we found.</div>
+      <div class="equation-row" id="equation-row"></div>
+    </div>
+
+    <div class="section-label" id="reasoning-section-label" style="display:none;">Why is each answer choice true or false?</div>
+    <div class="card" id="reasoning-card" style="display:none;">
+      <div class="sort-hint">For each answer choice, type why you think it's correct or incorrect. Then reveal the actual reasoning.</div>
+      <div id="answer-reasoning-list"></div>
+    </div>
+
+    <div class="phase-actions">
+      <button class="primary-btn" id="reveal-map-btn">Reveal what fills each box</button>
+    </div>
+  </div>
+
+  <!-- PHASE 2.7: choose the correct answer -->
+  <div class="phase" id="phase-choose">
+    <div class="type-stamp" id="type-stamp-choose"></div>
+    <div class="section-label">Step 5 — Choose the correct answer</div>
+    <div class="card">
+      <div class="hint" style="margin-bottom:1rem;">Based on everything so far, which answer choice is correct?</div>
+      <div class="formula-choice-list" id="choose-answer-list"></div>
+      <div class="guess-feedback" id="choose-feedback"></div>
+    </div>
+    <div class="phase-actions">
+      <button class="primary-btn" id="to-reveal-btn" disabled>Reveal full analysis →</button>
+    </div>
+  </div>
+
+  <!-- PHASE 3: full reveal -->
+  <div class="phase" id="phase-reveal">
+    <div class="type-stamp" id="type-stamp"></div>
+
+    <div class="section-label">Structural breakdown — correct answer</div>
+    <div class="card">
+      <div class="annotated" id="annotated"></div>
+      <div class="legend">
+        <span><span class="swatch" style="background:var(--brass);"></span>Context</span>
+        <span><span class="swatch" style="background:var(--sage);"></span>Premise</span>
+        <span><span class="swatch" style="background:var(--plum);"></span>Subsidiary conclusion</span>
+        <span><span class="swatch" style="background:var(--brick);"></span>Conclusion</span>
+        <span><span class="swatch" style="background:#999;"></span>Concession</span>
+      </div>
+    </div>
+
+    <div class="section-label">Identification test</div>
+    <div class="test-box" id="test-box"></div>
+
+    <div class="section-label">Formula applied to this question</div>
+    <div class="card formula-box">
+      <div class="formula-plain" id="formula-plain-reveal"></div>
+      <div class="formula-applied" id="formula-applied"></div>
+    </div>
+
+    <div class="section-label">How to find the answer — for this question</div>
+    <div class="card"><ol class="steps" id="steps"></ol></div>
+
+    <div class="section-label">Traps to watch for</div>
+    <div class="card"><ul class="traps" id="traps"></ul></div>
+
+    <div id="choices-section" style="display:none;">
+      <div class="section-label">Answer choices</div>
+      <div class="card"><div class="choices" id="choices"></div></div>
+    </div>
+
+    <div class="phase-actions">
+      <button class="ghost-btn" id="back-to-history-btn" style="display:none;">← Back to saved questions</button>
+      <button class="primary-btn" id="new-question-btn">Analyze another question</button>
+    </div>
+  </div>
+
+  <!-- PHASE 4: history list for a given type -->
+  <div class="phase" id="phase-history">
+    <div class="section-label" id="history-title">Saved questions</div>
+    <div class="card"><div id="history-list"></div></div>
+    <div class="phase-actions">
+      <button class="ghost-btn" id="history-back-btn">← Back</button>
+    </div>
+  </div>
+
+  <div class="log-card" id="log-card" style="display:none;">
+    <div class="log-title">Session log — question types seen (tap a count to review)</div>
+    <div class="tally-grid" id="tally-grid"></div>
+    <div class="log-actions-row">
+      <button class="ghost-btn" id="view-performance-btn">View performance by type →</button>
+      <button class="clear-log" id="clear-log">Clear log</button>
+    </div>
+  </div>
+
+  <!-- PHASE 5: performance breakdown -->
+  <div class="phase" id="phase-performance">
+    <div class="section-label">Performance by question type</div>
+    <div class="card">
+      <div class="hint" style="margin-bottom:1rem;">Based on your type guesses (Step 1) and final answer picks (Step 5), across every question you've completed.</div>
+      <div id="performance-table"></div>
+    </div>
+    <div class="phase-actions">
+      <button class="ghost-btn" id="performance-back-btn">← Back</button>
+    </div>
+  </div>
+
+  <footer>Question Docket — private study tool</footer>
+</div>
+
+<script>
+const OPEN_TYPES = ["Weaken", "Strengthen", "Sufficient Assumption", "Necessary Assumption", "Paradox", "Evaluate"];
+const CLOSED_TYPES = ["Conclusion", "Must Be True", "Supported", "Flaw", "Reasoning", "Disagree", "Parallel"];
+const TYPES = OPEN_TYPES.concat(CLOSED_TYPES);
+
+const TAG_LABEL = {context:"Context", premise:"Premise", subsidiary:"Subsidiary conclusion", conclusion:"Conclusion", concession:"Concession"};
 
 const FORMULAS = {
   "Weaken": "Assumption + [new fact] = assumption breaks \u2192 gap reopens \u2192 argument gets weaker.",
@@ -41,80 +971,682 @@ const FORMULAS = {
   "Parallel": "Original argument's structure (premise types + logical connectors + conclusion strength) \u2192 find the answer choice with the identical skeleton, regardless of subject matter."
 };
 
-const VALID_TYPES = Object.keys(FORMULAS);
+const PLAIN_EXPLAIN = {
+  "Weaken": "The right answer adds a new fact that breaks the argument's hidden assumption, making it weaker.",
+  "Strengthen": "The right answer adds a new fact that shores up the argument's hidden assumption, making it stronger.",
+  "Sufficient Assumption": "Add the right answer to what's already stated, and the conclusion becomes 100% guaranteed \u2014 nothing else needed.",
+  "Necessary Assumption": "The argument secretly depends on this being true. Deny it, and the whole argument collapses.",
+  "Paradox": "Two facts seem to clash. The right answer shows how both can be true at once, without picking a side.",
+  "Evaluate": "Find the gap between the premise and the conclusion. The right answer is a question that directly tests whether that gap actually holds up.",
+  "Conclusion": "Find the one claim every other claim is working to prove \u2014 that's the conclusion.",
+  "Must Be True": "The right answer has to be guaranteed by what's stated \u2014 no outside assumptions, no guessing.",
+  "Supported": "Find the premise's exact wording of scope or certainty. The right answer matches that same strength \u2014 not stronger, not weaker.",
+  "Flaw": "The argument quietly assumes something it never actually proves. Name that unproven assumption.",
+  "Reasoning": "Find the premise and the conclusion, then name the specific technique used to connect them \u2014 without judging whether that technique is any good.",
+  "Disagree": "Find the one specific claim the two speakers would answer in opposite ways.",
+  "Parallel": "Find the answer choice that's built exactly the same way as the original argument, just about a different topic."
+};
 
-const SYSTEM_PROMPT = `You are an LSAT Logical Reasoning tutor helping a student build mechanical, procedural fluency — not vague conceptual explanations. You classify a pasted LR question into exactly one of these 13 types and show the structural mechanics, using this framework as your authority for what "correct" and "trap" answers look like for each type:
-${FRAMEWORK}
-
-Here are the canonical short formulas for each type — use these verbatim as the "formula" field for the identified type:
-${JSON.stringify(FORMULAS, null, 2)}
-
-Rules:
-- Use plain language and concrete framing, not formal logical notation (no "X and Y" — use the actual subject of the passage, e.g. "the researchers" or "Walt").
-- The "segments" field must break the ENTIRE original stimulus text (not the question stem, not answer choices) into an ordered array of clause-level pieces that together reconstruct the full stimulus verbatim when concatenated with spaces. Each segment is {"id": "s1", "text": "...", "tag": "context"|"premise"|"subsidiary"|"conclusion"|"concession", "reason": "..."}. Connective words (like "but", "since") can be attached to the following clause rather than standing alone. Every part of the stimulus must be covered by exactly one segment. The "reason" field is one concise sentence explaining WHY this specific clause has this specific role — grounded in the support relationship (a premise gives support, a conclusion receives support, a subsidiary conclusion does both, context neither gives nor receives support but sets up the topic or reports someone else's position, a concession is acknowledged but works against the conclusion). Reference the actual content, don't restate a generic definition.
-- Note: for Disagree (Point at Issue) questions with two speakers, tag each speaker's claims using the same five tags relative to their own mini-argument where applicable, or "context" for pure setup.
-- "identification_test" is the specific mechanical test for the identified type, phrased for this exact question (not generic).
-- "formula" is the canonical formula string for the identified type, copied exactly from the list above.
-- "formula_applied" takes that same formula and substitutes in the ACTUAL content of this question in place of each bracketed or generic placeholder — write it as a single flowing line using the real subject matter. Keep it concise, one to two sentences, and make sure every placeholder from the formula is replaced with something specific to this passage.
-- "steps" are 3-5 concrete, numbered actions for finding the correct answer in THIS specific question — reference the actual content.
-- "traps" are 2-4 specific wrong-answer patterns to watch for, tailored to this question's content where possible.
-- If answer choices (A)-(E) were included in the input, evaluate each briefly in "answer_analysis": [{"letter":"A","verdict":"correct"|"wrong","reason":"one sentence, specific to this passage"}]. If no answer choices were given, omit "answer_analysis" or return an empty array. For Parallel specifically, "verdict" reflects structural match, not strengthen/weaken logic. For Evaluate, "verdict" reflects whether the question would actually swing the argument's strength either way. For Disagree, "verdict" reflects whether that choice names a claim both speakers would answer oppositely.
-- "question_stem" is the verbatim question prompt line — the actual instruction being asked (e.g. "Which one of the following, if true, most weakens the argument?"), distinct from the stimulus and the answer choices. Extract it exactly as written in the input.
-- If answer choices were included, also return "answer_choices": [{"letter":"A","text":"the verbatim text of that choice"}, ...] for all choices given, in order. Omit or return an empty array if no answer choices were given.
-- "formula_slots": break the CORE equation of the formula (the first sentence only — ignore any trailing "Test: ..." sentence) into an ordered array of 2-5 boxes, left to right, the way you'd draw it on paper: label | connector | label | connector | label... Each box is {"label": "short term exactly as it appears in the formula, e.g. Assumption or [new fact] or gap closes", "connector_before": "the symbol or short phrase that comes immediately before this box in the formula (e.g. \\"+\\", \\"=\\", \\"\\u2192\\", \\"because\\", \\";\\"), empty string for the first box", "expected_text": "a short, specific sentence filling this box with THIS question's actual content", "source": "stimulus"|"answer_choice"|null, "ref": "the segment id if source is stimulus, the answer letter if source is answer_choice, null otherwise"}. Use "source"/"ref" only for boxes whose filler is a concrete premise/conclusion/fact already stated in the stimulus (source: stimulus) or is what the correct answer choice supplies (source: answer_choice) — leave both null for boxes that are explanatory/outcome phrases (like "gap closes" or "argument gets stronger") rather than a specific quoted piece of the question.
-- Respond with ONLY valid JSON, no markdown fences, no preamble. Schema:
-{"question_type": "${VALID_TYPES.join('|')}", "segments": [{"id":"s1","text":"...","tag":"context","reason":"..."}], "question_stem": "...", "identification_test": "...", "formula": "...", "formula_applied": "...", "formula_slots": [{"label":"Assumption","connector_before":"","expected_text":"...","source":"stimulus","ref":"s2"},{"label":"[new fact]","connector_before":"+","expected_text":"...","source":"answer_choice","ref":"C"},{"label":"gap closes","connector_before":"=","expected_text":"...","source":null,"ref":null},{"label":"argument gets stronger","connector_before":"\\u2192","expected_text":"...","source":null,"ref":null}], "steps": ["...", "..."], "traps": ["...", "..."], "answer_choices": [{"letter":"A","text":"..."}], "answer_analysis": [{"letter":"A","verdict":"wrong","reason":"..."}]}`;
-
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    res.status(405).json({ error: 'Method not allowed' });
-    return;
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i = a.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
+  return a;
+}
 
-  const { input } = req.body || {};
-  if (!input || typeof input !== 'string' || !input.trim()) {
-    res.status(400).json({ error: 'Missing question text' });
-    return;
-  }
+let sessionLog = []; // array of {id, question_type, timestamp, result, type_correct, answer_correct}
+let currentTypeGuessCorrect = null;
+let currentAnswerCorrect = null;
+let currentResult = null;
+let assignments = {}; // segmentId -> tag
+let activeSlot = null;
+let historyType = null;
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(500).json({ error: 'Server is missing ANTHROPIC_API_KEY. Add it in your hosting provider\u2019s environment variable settings.' });
-    return;
-  }
+function setDocketNo(){
+  document.getElementById('docket-no').textContent = 'No. ' + String(Math.floor(1000 + Math.random()*8999));
+}
+setDocketNo();
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 3000,
-        system: SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: input.slice(0, 6000) }]
-      })
+function makeId(){
+  return 'q_' + Date.now() + '_' + Math.floor(Math.random()*100000);
+}
+
+function loadLog(){
+  try{
+    const raw = localStorage.getItem('lsat-docket-log');
+    if(raw){
+      const parsed = JSON.parse(raw);
+      sessionLog = parsed.map(entry =>
+        typeof entry === 'string' ? { id: makeId(), question_type: entry, timestamp: Date.now(), result: null } : entry
+      );
+    }
+  }catch(e){ sessionLog = []; }
+  renderLog();
+}
+function addLogEntry(result, typeCorrect, answerCorrect){
+  sessionLog.push({
+    id: makeId(),
+    question_type: result.question_type,
+    timestamp: Date.now(),
+    result,
+    type_correct: typeCorrect,
+    answer_correct: answerCorrect
+  });
+  saveLog();
+  renderLog();
+}
+function saveLog(){
+  try{ localStorage.setItem('lsat-docket-log', JSON.stringify(sessionLog)); }catch(e){ /* ignore */ }
+}
+function renderLog(){
+  const card = document.getElementById('log-card');
+  if(sessionLog.length === 0){ card.style.display = 'none'; return; }
+  card.style.display = 'block';
+  const tally = {};
+  sessionLog.forEach(entry => { tally[entry.question_type] = (tally[entry.question_type]||0) + 1; });
+  const grid = document.getElementById('tally-grid');
+  grid.innerHTML = '';
+  Object.entries(tally)
+    .sort((a,b)=>b[1]-a[1])
+    .forEach(([type,count]) => {
+      const pill = document.createElement('button');
+      pill.className = 'tally-pill';
+      pill.innerHTML = `${type} <b>${count}</b>`;
+      pill.onclick = () => openHistory(type);
+      grid.appendChild(pill);
     });
+}
+document.getElementById('clear-log').onclick = () => {
+  sessionLog = [];
+  saveLog();
+  renderLog();
+};
+loadLog();
 
-    if (!response.ok) {
-      const errText = await response.text();
-      res.status(response.status).json({ error: 'Claude API error', detail: errText });
-      return;
+// ---------- PHASE 5: performance breakdown ----------
+function renderPerformance(){
+  const byType = {};
+  sessionLog.forEach(entry => {
+    if(!byType[entry.question_type]){
+      byType[entry.question_type] = { attempts: 0, typeCorrect: 0, typeTracked: 0, answerCorrect: 0, answerTracked: 0 };
     }
-
-    const data = await response.json();
-    const textBlock = (data.content || []).find((b) => b.type === 'text');
-    if (!textBlock) {
-      res.status(502).json({ error: 'No text in Claude response' });
-      return;
+    const bucket = byType[entry.question_type];
+    bucket.attempts++;
+    if(typeof entry.type_correct === 'boolean'){
+      bucket.typeTracked++;
+      if(entry.type_correct) bucket.typeCorrect++;
     }
+    if(typeof entry.answer_correct === 'boolean'){
+      bucket.answerTracked++;
+      if(entry.answer_correct) bucket.answerCorrect++;
+    }
+  });
 
-    const cleaned = textBlock.text.replace(/```json|```/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-    res.status(200).json(parsed);
-  } catch (err) {
-    res.status(500).json({ error: 'Analysis failed', detail: String(err) });
+  function pctClass(pct){
+    if(pct === null) return 'perf-none';
+    if(pct >= 70) return 'perf-strong';
+    if(pct >= 45) return 'perf-mid';
+    return 'perf-weak';
+  }
+  function pctText(correct, tracked){
+    if(tracked === 0) return { text: '—', pct: null };
+    const pct = Math.round((correct / tracked) * 100);
+    return { text: pct + '%', pct };
+  }
+
+  const rows = Object.entries(byType).map(([type, b]) => {
+    const typePct = pctText(b.typeCorrect, b.typeTracked);
+    const answerPct = pctText(b.answerCorrect, b.answerTracked);
+    return { type, attempts: b.attempts, typePct, answerPct };
+  });
+
+  // Weakest answer-accuracy first so problem areas surface at the top; ties fall back to type accuracy.
+  rows.sort((a, b) => {
+    const aScore = a.answerPct.pct !== null ? a.answerPct.pct : (a.typePct.pct !== null ? a.typePct.pct : 999);
+    const bScore = b.answerPct.pct !== null ? b.answerPct.pct : (b.typePct.pct !== null ? b.typePct.pct : 999);
+    return aScore - bScore;
+  });
+
+  const table = document.getElementById('performance-table');
+  if(rows.length === 0){
+    table.innerHTML = '<div class="history-empty">No completed questions yet.</div>';
+    return;
+  }
+  table.innerHTML = '<div class="perf-row perf-header"><div>Type</div><div>Seen</div><div>Type ID</div><div>Answer</div></div>';
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'perf-row';
+    row.innerHTML = `
+      <div class="perf-type">${escapeButKeepNone(r.type)}</div>
+      <div class="perf-count">${r.attempts}</div>
+      <div class="perf-metric ${pctClass(r.typePct.pct)}">${r.typePct.text}</div>
+      <div class="perf-metric ${pctClass(r.answerPct.pct)}">${r.answerPct.text}</div>
+    `;
+    table.appendChild(row);
+  });
+}
+
+document.getElementById('view-performance-btn').onclick = () => {
+  renderPerformance();
+  showPhase('phase-performance');
+};
+document.getElementById('performance-back-btn').onclick = () => showPhase('phase-input');
+
+function showPhase(id){
+  document.querySelectorAll('.phase').forEach(p => p.classList.remove('show'));
+  document.getElementById(id).classList.add('show');
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function escapeButKeepNone(s){
+  if(!s) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+// ---------- PHASE 0: fetch ----------
+const startBtn = document.getElementById('start-btn');
+const loading = document.getElementById('loading');
+const loadingText = document.getElementById('loading-text');
+const errorBox = document.getElementById('error-box');
+const loadingMsgs = ['Reading the stimulus…','Locating the conclusion…','Checking premise support…','Running the identification test…'];
+
+startBtn.onclick = async () => {
+  const input = document.getElementById('q-input').value.trim();
+  if(!input){
+    errorBox.style.display = 'block';
+    errorBox.textContent = 'Paste a question first.';
+    return;
+  }
+  errorBox.style.display = 'none';
+  startBtn.disabled = true;
+  loading.classList.add('show');
+  let msgIdx = 0;
+  loadingText.textContent = loadingMsgs[0];
+  const msgInterval = setInterval(() => {
+    msgIdx = (msgIdx + 1) % loadingMsgs.length;
+    loadingText.textContent = loadingMsgs[msgIdx];
+  }, 1400);
+
+  try{
+    const response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ input })
+    });
+    const parsed = await response.json();
+    if(!response.ok){
+      throw new Error(parsed.error || 'Request failed');
+    }
+    currentResult = parsed;
+    beginTypeQuiz();
+  }catch(err){
+    console.error(err);
+    errorBox.style.display = 'block';
+    errorBox.textContent = err.message && err.message !== 'Request failed'
+      ? err.message
+      : 'Something went wrong analyzing that question. Try again, or check the passage is complete.';
+  }finally{
+    clearInterval(msgInterval);
+    loading.classList.remove('show');
+    startBtn.disabled = false;
+  }
+};
+
+// ---------- PHASE 1: guess the type ----------
+function beginTypeQuiz(){
+  currentTypeGuessCorrect = null;
+  currentAnswerCorrect = null;
+  document.getElementById('plain-stimulus').textContent = (currentResult.segments || []).map(s => s.text).join(' ');
+  document.getElementById('plain-question-stem').textContent = currentResult.question_stem || '';
+
+  const groupsEl = document.getElementById('type-groups');
+  groupsEl.innerHTML = '';
+
+  function buildGroup(label, sub, types){
+    const labelEl = document.createElement('div');
+    labelEl.className = 'type-group-label';
+    labelEl.innerHTML = label + ' <span class="type-group-sub">' + sub + '</span>';
+    groupsEl.appendChild(labelEl);
+
+    const grid = document.createElement('div');
+    grid.className = 'type-grid';
+    types.forEach(t => {
+      const b = document.createElement('button');
+      b.className = 'type-btn';
+      b.textContent = t;
+      b.onclick = () => handleTypeGuess(t, b);
+      grid.appendChild(b);
+    });
+    groupsEl.appendChild(grid);
+  }
+
+  buildGroup('Open', '— new info in the answer', OPEN_TYPES);
+  buildGroup('Closed', '— only what\'s in the stimulus', CLOSED_TYPES);
+
+  document.getElementById('guess-feedback').className = 'guess-feedback';
+  document.getElementById('to-formula-btn').disabled = true;
+  showPhase('phase-type');
+}
+
+function handleTypeGuess(chosen, btnEl){
+  const correct = currentResult.question_type;
+  currentTypeGuessCorrect = (chosen === correct);
+  document.querySelectorAll('.type-btn').forEach(b => b.disabled = true);
+  const feedback = document.getElementById('guess-feedback');
+  if(chosen === correct){
+    btnEl.classList.add('chosen-correct');
+    feedback.className = 'guess-feedback show correct';
+    feedback.textContent = 'Correct — this is a ' + correct + ' question.';
+  } else {
+    btnEl.classList.add('chosen-wrong');
+    document.querySelectorAll('.type-btn').forEach(b => {
+      if(b.textContent === correct) b.classList.add('reveal-correct');
+    });
+    feedback.className = 'guess-feedback show wrong';
+    feedback.textContent = 'Not quite — this is actually a ' + correct + ' question.';
+  }
+  document.getElementById('to-formula-btn').disabled = false;
+}
+
+document.getElementById('to-formula-btn').onclick = beginFormulaQuiz;
+
+// ---------- PHASE 1.5: guess the formula ----------
+function beginFormulaQuiz(){
+  const correctType = currentResult.question_type;
+  const correctFormula = currentResult.formula || FORMULAS[correctType];
+  document.getElementById('type-stamp-formula').textContent = correctType;
+
+  const otherTypes = shuffle(TYPES.filter(t => t !== correctType)).slice(0, 3);
+  const options = shuffle([
+    { type: correctType, text: correctFormula },
+    ...otherTypes.map(t => ({ type: t, text: FORMULAS[t] }))
+  ]);
+
+  const list = document.getElementById('formula-choice-list');
+  list.innerHTML = '';
+  options.forEach(opt => {
+    const b = document.createElement('button');
+    b.className = 'formula-choice-btn';
+    b.textContent = opt.text;
+    b.onclick = () => handleFormulaGuess(opt, correctFormula, b);
+    list.appendChild(b);
+  });
+  document.getElementById('formula-feedback').className = 'guess-feedback';
+  document.getElementById('to-sort-btn').disabled = true;
+  showPhase('phase-formula');
+}
+
+function handleFormulaGuess(chosenOpt, correctFormula, btnEl){
+  document.querySelectorAll('.formula-choice-btn').forEach(b => b.disabled = true);
+  const feedback = document.getElementById('formula-feedback');
+  const isRight = chosenOpt.text === correctFormula;
+  if(isRight){
+    btnEl.classList.add('chosen-correct');
+    feedback.className = 'guess-feedback show correct';
+    feedback.textContent = 'Correct — that\'s the formula for this type.';
+  } else {
+    btnEl.classList.add('chosen-wrong');
+    document.querySelectorAll('.formula-choice-btn').forEach(b => {
+      if(b.textContent === correctFormula) b.classList.add('reveal-correct');
+    });
+    feedback.className = 'guess-feedback show wrong';
+    feedback.textContent = 'Not quite — the correct formula is highlighted above.';
+  }
+  document.getElementById('to-sort-btn').disabled = false;
+}
+
+document.getElementById('to-sort-btn').onclick = beginSortExercise;
+
+// ---------- PHASE 2: sort ----------
+function beginSortExercise(){
+  assignments = {};
+  activeSlot = null;
+
+  document.getElementById('type-stamp-sort').textContent = currentResult.question_type;
+  document.getElementById('formula-generic-sort').textContent = currentResult.formula || '';
+  document.getElementById('formula-plain-sort').textContent = PLAIN_EXPLAIN[currentResult.question_type] || '';
+
+  const allTags = ['context', 'premise', 'subsidiary', 'conclusion', 'concession'];
+  const slotRow = document.getElementById('slot-row');
+  slotRow.innerHTML = '';
+  allTags.forEach(tag => {
+    const b = document.createElement('button');
+    b.className = 'slot-btn slot-' + tag;
+    b.textContent = TAG_LABEL[tag] || tag;
+    b.dataset.tag = tag;
+    b.onclick = () => selectSlot(tag, b);
+    slotRow.appendChild(b);
+  });
+
+  renderChips();
+  document.getElementById('sort-score').className = 'sort-score';
+  document.getElementById('check-sort-btn').disabled = true;
+  showPhase('phase-sort');
+}
+
+function selectSlot(tag, btnEl){
+  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('active'));
+  if(activeSlot === tag){
+    activeSlot = null;
+  } else {
+    activeSlot = tag;
+    btnEl.classList.add('active');
   }
 }
+
+function renderChips(){
+  const list = document.getElementById('chip-list');
+  list.innerHTML = '';
+  (currentResult.segments || []).forEach(seg => {
+    const div = document.createElement('div');
+    const assignedTag = assignments[seg.id];
+    div.className = 'chip' + (assignedTag ? ' assigned assign-' + assignedTag : '');
+    div.dataset.id = seg.id;
+    div.innerHTML = escapeButKeepNone(seg.text) + (assignedTag ? `<span class="chip-tagline">${TAG_LABEL[assignedTag]}</span>` : '');
+    div.onclick = () => assignChip(seg.id);
+    list.appendChild(div);
+  });
+  updateCheckBtn();
+}
+
+function assignChip(segId){
+  if(!activeSlot) return;
+  assignments[segId] = activeSlot;
+  renderChips();
+}
+
+function updateCheckBtn(){
+  const total = (currentResult.segments || []).length;
+  const done = Object.keys(assignments).length;
+  document.getElementById('check-sort-btn').disabled = done < total;
+}
+
+document.getElementById('reset-sort-btn').onclick = () => {
+  assignments = {};
+  document.getElementById('sort-score').className = 'sort-score';
+  renderChips();
+};
+
+document.getElementById('check-sort-btn').onclick = () => {
+  let correctCount = 0;
+  const total = (currentResult.segments || []).length;
+  const list = document.getElementById('chip-list');
+  list.innerHTML = '';
+  (currentResult.segments || []).forEach(seg => {
+    const div = document.createElement('div');
+    const userTag = assignments[seg.id];
+    const isRight = userTag === seg.tag;
+    if(isRight) correctCount++;
+    div.className = 'chip assigned assign-' + userTag + ' ' + (isRight ? 'graded-correct' : 'graded-wrong');
+    let html = escapeButKeepNone(seg.text) + `<span class="chip-tagline">${TAG_LABEL[userTag] || userTag}</span>`;
+    if(!isRight){
+      html += `<span class="chip-correction">Correct role: ${TAG_LABEL[seg.tag]}</span>`;
+    }
+    if(seg.reason){
+      html += `<span class="chip-reason">${escapeButKeepNone(seg.reason)}</span>`;
+    }
+    div.innerHTML = html;
+    list.appendChild(div);
+  });
+  const scoreBox = document.getElementById('sort-score');
+  scoreBox.className = 'sort-score show';
+  scoreBox.textContent = `You sorted ${correctCount} of ${total} sentences correctly.`;
+  document.getElementById('check-sort-btn').disabled = true;
+
+  const revealBtn = document.createElement('button');
+  revealBtn.className = 'primary-btn';
+  revealBtn.style.marginTop = '1rem';
+  revealBtn.textContent = 'Continue to formula mapping →';
+  revealBtn.onclick = beginFormulaMapping;
+  scoreBox.appendChild(document.createElement('br'));
+  scoreBox.appendChild(revealBtn);
+};
+
+// ---------- PHASE 2.5: fill in the formula ----------
+function beginFormulaMapping(){
+  document.getElementById('type-stamp-map').textContent = currentResult.question_type;
+  document.getElementById('plain-stimulus-map').textContent = (currentResult.segments || []).map(s => s.text).join(' ');
+  document.getElementById('plain-question-stem-map').textContent = currentResult.question_stem || '';
+
+  const slots = currentResult.formula_slots || [];
+  const row = document.getElementById('equation-row');
+  row.innerHTML = '';
+
+  slots.forEach((slot, i) => {
+    if(i > 0 || slot.connector_before){
+      const conn = document.createElement('div');
+      conn.className = 'eq-connector';
+      conn.textContent = slot.connector_before || '';
+      if(slot.connector_before) row.appendChild(conn);
+    }
+    const wrap = document.createElement('div');
+    wrap.className = 'eq-box-wrap';
+
+    const label = document.createElement('div');
+    label.className = 'eq-label';
+    label.textContent = slot.label;
+    wrap.appendChild(label);
+
+    const input = document.createElement('textarea');
+    input.className = 'eq-input';
+    input.dataset.index = i;
+    input.placeholder = 'Type your answer…';
+    wrap.appendChild(input);
+
+    const reveal = document.createElement('div');
+    reveal.className = 'eq-reveal';
+    reveal.id = 'eq-reveal-' + i;
+    let sourceNote = '';
+    if(slot.source === 'stimulus') sourceNote = 'From the stimulus';
+    else if(slot.source === 'answer_choice') sourceNote = 'From answer choice ' + slot.ref;
+    reveal.innerHTML = `<span class="eq-reveal-label">What we found</span>${escapeButKeepNone(slot.expected_text || '')}` +
+      (sourceNote ? `<span class="eq-source-note">${sourceNote}</span>` : '');
+    wrap.appendChild(reveal);
+
+    row.appendChild(wrap);
+  });
+
+  // Answer-choice reasoning: only shown if answer choices were provided.
+  const choices = currentResult.answer_choices || [];
+  const analysis = currentResult.answer_analysis || [];
+  const reasoningLabel = document.getElementById('reasoning-section-label');
+  const reasoningCard = document.getElementById('reasoning-card');
+  const reasoningList = document.getElementById('answer-reasoning-list');
+  reasoningList.innerHTML = '';
+
+  if(choices.length > 0){
+    reasoningLabel.style.display = 'block';
+    reasoningCard.style.display = 'block';
+    choices.forEach(c => {
+      const analysisEntry = analysis.find(a => a.letter === c.letter);
+      const item = document.createElement('div');
+      item.className = 'reasoning-item';
+
+      const choiceText = document.createElement('div');
+      choiceText.className = 'reasoning-choice-text';
+      choiceText.innerHTML = `<b>(${c.letter})</b> ${escapeButKeepNone(c.text)}`;
+      item.appendChild(choiceText);
+
+      const input = document.createElement('textarea');
+      input.className = 'reasoning-input';
+      input.dataset.letter = c.letter;
+      input.placeholder = 'Why is this true or false?';
+      item.appendChild(input);
+
+      const reveal = document.createElement('div');
+      const isCorrect = analysisEntry && analysisEntry.verdict === 'correct';
+      reveal.className = 'reasoning-reveal' + (isCorrect ? ' reasoning-correct' : ' reasoning-wrong');
+      reveal.id = 'reasoning-reveal-' + c.letter;
+      reveal.innerHTML = `<span class="reasoning-reveal-label">${isCorrect ? 'Correct' : 'Wrong'}</span>` +
+        escapeButKeepNone(analysisEntry ? analysisEntry.reason : '');
+      item.appendChild(reveal);
+
+      reasoningList.appendChild(item);
+    });
+  } else {
+    reasoningLabel.style.display = 'none';
+    reasoningCard.style.display = 'none';
+  }
+
+  const revealBtn = document.getElementById('reveal-map-btn');
+  revealBtn.textContent = 'Reveal what fills each box';
+  revealBtn.onclick = revealMapAnswers;
+  showPhase('phase-map');
+}
+
+function revealMapAnswers(){
+  document.querySelectorAll('.eq-reveal').forEach(el => el.classList.add('show'));
+  document.querySelectorAll('.reasoning-reveal').forEach(el => el.classList.add('show'));
+  const revealBtn = document.getElementById('reveal-map-btn');
+  revealBtn.textContent = 'Continue →';
+  revealBtn.onclick = beginChooseAnswer;
+}
+
+// ---------- PHASE 2.7: choose the correct answer ----------
+function beginChooseAnswer(){
+  const choices = currentResult.answer_choices || [];
+  if(choices.length === 0){
+    // Nothing to choose between — skip straight to the reveal.
+    revealFull();
+    return;
+  }
+
+  document.getElementById('type-stamp-choose').textContent = currentResult.question_type;
+  const list = document.getElementById('choose-answer-list');
+  list.innerHTML = '';
+  choices.forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'formula-choice-btn';
+    b.textContent = `(${c.letter}) ${c.text}`;
+    b.onclick = () => handleChooseAnswer(c.letter, b);
+    list.appendChild(b);
+  });
+  document.getElementById('choose-feedback').className = 'guess-feedback';
+  document.getElementById('to-reveal-btn').disabled = true;
+  document.getElementById('to-reveal-btn').onclick = revealFull;
+  showPhase('phase-choose');
+}
+
+function handleChooseAnswer(chosenLetter, btnEl){
+  const analysis = currentResult.answer_analysis || [];
+  const correctEntry = analysis.find(a => a.verdict === 'correct');
+  const isRight = correctEntry && correctEntry.letter === chosenLetter;
+  currentAnswerCorrect = !!isRight;
+
+  document.querySelectorAll('#choose-answer-list .formula-choice-btn').forEach(b => b.disabled = true);
+  const feedback = document.getElementById('choose-feedback');
+
+  if(isRight){
+    btnEl.classList.add('chosen-correct');
+    feedback.className = 'guess-feedback show correct';
+    feedback.textContent = 'Correct — that\'s the right answer.';
+  } else {
+    btnEl.classList.add('chosen-wrong');
+    if(correctEntry){
+      document.querySelectorAll('#choose-answer-list .formula-choice-btn').forEach(b => {
+        if(b.textContent.startsWith(`(${correctEntry.letter})`)) b.classList.add('reveal-correct');
+      });
+    }
+    feedback.className = 'guess-feedback show wrong';
+    feedback.textContent = correctEntry
+      ? `Not quite — (${correctEntry.letter}) is correct, highlighted above.`
+      : 'Not quite.';
+  }
+  document.getElementById('to-reveal-btn').disabled = false;
+}
+
+// ---------- PHASE 3: full reveal ----------
+function renderRevealUI(p){
+  document.getElementById('type-stamp').textContent = p.question_type;
+
+  const annotated = (p.segments || []).map(seg =>
+    `<span class="tag tag-${seg.tag}" data-tag="${TAG_LABEL[seg.tag] ? TAG_LABEL[seg.tag].toLowerCase() : seg.tag}">${escapeButKeepNone(seg.text)}</span>`
+  ).join(' ');
+  document.getElementById('annotated').innerHTML = annotated;
+
+  document.getElementById('test-box').innerHTML = '<strong>Test —</strong> ' + escapeButKeepNone(p.identification_test);
+  document.getElementById('formula-plain-reveal').textContent = PLAIN_EXPLAIN[p.question_type] || '';
+  document.getElementById('formula-applied').textContent = p.formula_applied || '';
+  document.getElementById('steps').innerHTML = (p.steps||[]).map(s => `<li>${escapeButKeepNone(s)}</li>`).join('');
+  document.getElementById('traps').innerHTML = (p.traps||[]).map(t => `<li>${escapeButKeepNone(t)}</li>`).join('');
+
+  const choicesSection = document.getElementById('choices-section');
+  const choicesEl = document.getElementById('choices');
+  if(p.answer_analysis && p.answer_analysis.length){
+    choicesSection.style.display = 'block';
+    choicesEl.innerHTML = p.answer_analysis.map(c => `
+      <div class="choice-row ${c.verdict === 'correct' ? 'correct' : 'wrong'}">
+        <span class="choice-letter">(${c.letter})</span>
+        <div>
+          <span class="choice-verdict">${c.verdict === 'correct' ? 'Correct' : 'Wrong'}</span>
+          ${escapeButKeepNone(c.reason)}
+        </div>
+      </div>
+    `).join('');
+  } else {
+    choicesSection.style.display = 'none';
+  }
+
+  setDocketNo();
+}
+
+function revealFull(){
+  const p = currentResult;
+  renderRevealUI(p);
+  document.getElementById('back-to-history-btn').style.display = 'none';
+  addLogEntry(p, currentTypeGuessCorrect, currentAnswerCorrect);
+  showPhase('phase-reveal');
+}
+
+document.getElementById('new-question-btn').onclick = () => {
+  document.getElementById('q-input').value = '';
+  currentResult = null;
+  showPhase('phase-input');
+};
+
+// ---------- Browsing saved questions by type ----------
+function openHistory(type){
+  historyType = type;
+  document.getElementById('history-title').textContent = type + ' — saved questions';
+  const list = document.getElementById('history-list');
+  const entries = sessionLog.filter(e => e.question_type === type).sort((a,b) => b.timestamp - a.timestamp);
+
+  if(entries.length === 0){
+    list.innerHTML = '<div class="history-empty">No saved questions of this type yet.</div>';
+  } else {
+    list.innerHTML = '';
+    entries.forEach(entry => {
+      const row = document.createElement('div');
+      row.className = 'history-item';
+      const dateStr = new Date(entry.timestamp).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+      const snippet = entry.result && entry.result.segments
+        ? entry.result.segments.map(s => s.text).join(' ').slice(0, 140) + '…'
+        : '(older entry — no saved detail)';
+      row.innerHTML = `<div class="history-date">${dateStr}</div><div class="history-snippet">${escapeButKeepNone(snippet)}</div>`;
+      row.onclick = () => {
+        if(!entry.result){
+          alert('This question was saved before the archive feature was added, so its full analysis wasn\'t kept — only the type. Newer questions will have the full detail.');
+          return;
+        }
+        viewArchivedEntry(entry);
+      };
+      list.appendChild(row);
+    });
+  }
+  showPhase('phase-history');
+}
+document.getElementById('history-back-btn').onclick = () => showPhase('phase-input');
+
+function viewArchivedEntry(entry){
+  renderRevealUI(entry.result);
+  document.getElementById('back-to-history-btn').style.display = 'inline-block';
+  document.getElementById('back-to-history-btn').onclick = () => openHistory(historyType);
+  showPhase('phase-reveal');
+}
+</script>
+</body>
+</html>
