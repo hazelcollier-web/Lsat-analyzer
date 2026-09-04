@@ -363,7 +363,43 @@
   .clear-log{
     background:none; border:none; color:var(--ink-soft);
     font-family:'IBM Plex Mono',monospace; font-size:11px;
-    text-decoration:underline; cursor:pointer; margin-top:.75rem;
+    text-decoration:underline; cursor:pointer;
+  }
+  .log-actions-row{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    margin-top:.85rem;
+    flex-wrap:wrap;
+    gap:.6rem;
+  }
+
+  .perf-row{
+    display:grid;
+    grid-template-columns:1.4fr .7fr 1fr 1fr;
+    gap:.5rem;
+    align-items:center;
+    padding:.7rem 0;
+    border-bottom:1px solid var(--line);
+    font-size:13px;
+  }
+  .perf-row:last-child{border-bottom:none;}
+  .perf-row.perf-header{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:.05em;
+    color:var(--ink-soft);
+  }
+  .perf-type{font-family:'Inter',sans-serif; font-weight:600;}
+  .perf-count{font-family:'IBM Plex Mono',monospace; color:var(--ink-soft);}
+  .perf-metric{font-family:'IBM Plex Mono',monospace; font-weight:600;}
+  .perf-metric.perf-strong{color:var(--sage);}
+  .perf-metric.perf-weak{color:var(--brick);}
+  .perf-metric.perf-mid{color:var(--ink);}
+  .perf-metric.perf-none{color:#B8AEB2; font-weight:400;}
+  @media (max-width:520px){
+    .perf-row{grid-template-columns:1.2fr .6fr .8fr .8fr; font-size:12px;}
   }
 
   footer{
@@ -812,7 +848,22 @@ Which one of the following, if true, most weakens the argument?
   <div class="log-card" id="log-card" style="display:none;">
     <div class="log-title">Session log — question types seen (tap a count to review)</div>
     <div class="tally-grid" id="tally-grid"></div>
-    <button class="clear-log" id="clear-log">Clear log</button>
+    <div class="log-actions-row">
+      <button class="ghost-btn" id="view-performance-btn">View performance by type →</button>
+      <button class="clear-log" id="clear-log">Clear log</button>
+    </div>
+  </div>
+
+  <!-- PHASE 5: performance breakdown -->
+  <div class="phase" id="phase-performance">
+    <div class="section-label">Performance by question type</div>
+    <div class="card">
+      <div class="hint" style="margin-bottom:1rem;">Based on your type guesses (Step 1) and final answer picks (Step 5), across every question you've completed.</div>
+      <div id="performance-table"></div>
+    </div>
+    <div class="phase-actions">
+      <button class="ghost-btn" id="performance-back-btn">← Back</button>
+    </div>
   </div>
 
   <footer>Question Docket — private study tool</footer>
@@ -866,7 +917,9 @@ function shuffle(arr){
   return a;
 }
 
-let sessionLog = []; // array of {id, question_type, timestamp, result}
+let sessionLog = []; // array of {id, question_type, timestamp, result, type_correct, answer_correct}
+let currentTypeGuessCorrect = null;
+let currentAnswerCorrect = null;
 let currentResult = null;
 let assignments = {}; // segmentId -> tag
 let activeSlot = null;
@@ -893,8 +946,15 @@ function loadLog(){
   }catch(e){ sessionLog = []; }
   renderLog();
 }
-function addLogEntry(result){
-  sessionLog.push({ id: makeId(), question_type: result.question_type, timestamp: Date.now(), result });
+function addLogEntry(result, typeCorrect, answerCorrect){
+  sessionLog.push({
+    id: makeId(),
+    question_type: result.question_type,
+    timestamp: Date.now(),
+    result,
+    type_correct: typeCorrect,
+    answer_correct: answerCorrect
+  });
   saveLog();
   renderLog();
 }
@@ -925,6 +985,75 @@ document.getElementById('clear-log').onclick = () => {
   renderLog();
 };
 loadLog();
+
+// ---------- PHASE 5: performance breakdown ----------
+function renderPerformance(){
+  const byType = {};
+  sessionLog.forEach(entry => {
+    if(!byType[entry.question_type]){
+      byType[entry.question_type] = { attempts: 0, typeCorrect: 0, typeTracked: 0, answerCorrect: 0, answerTracked: 0 };
+    }
+    const bucket = byType[entry.question_type];
+    bucket.attempts++;
+    if(typeof entry.type_correct === 'boolean'){
+      bucket.typeTracked++;
+      if(entry.type_correct) bucket.typeCorrect++;
+    }
+    if(typeof entry.answer_correct === 'boolean'){
+      bucket.answerTracked++;
+      if(entry.answer_correct) bucket.answerCorrect++;
+    }
+  });
+
+  function pctClass(pct){
+    if(pct === null) return 'perf-none';
+    if(pct >= 70) return 'perf-strong';
+    if(pct >= 45) return 'perf-mid';
+    return 'perf-weak';
+  }
+  function pctText(correct, tracked){
+    if(tracked === 0) return { text: '—', pct: null };
+    const pct = Math.round((correct / tracked) * 100);
+    return { text: pct + '%', pct };
+  }
+
+  const rows = Object.entries(byType).map(([type, b]) => {
+    const typePct = pctText(b.typeCorrect, b.typeTracked);
+    const answerPct = pctText(b.answerCorrect, b.answerTracked);
+    return { type, attempts: b.attempts, typePct, answerPct };
+  });
+
+  // Weakest answer-accuracy first so problem areas surface at the top; ties fall back to type accuracy.
+  rows.sort((a, b) => {
+    const aScore = a.answerPct.pct !== null ? a.answerPct.pct : (a.typePct.pct !== null ? a.typePct.pct : 999);
+    const bScore = b.answerPct.pct !== null ? b.answerPct.pct : (b.typePct.pct !== null ? b.typePct.pct : 999);
+    return aScore - bScore;
+  });
+
+  const table = document.getElementById('performance-table');
+  if(rows.length === 0){
+    table.innerHTML = '<div class="history-empty">No completed questions yet.</div>';
+    return;
+  }
+  table.innerHTML = '<div class="perf-row perf-header"><div>Type</div><div>Seen</div><div>Type ID</div><div>Answer</div></div>';
+  rows.forEach(r => {
+    const row = document.createElement('div');
+    row.className = 'perf-row';
+    row.innerHTML = `
+      <div class="perf-type">${escapeButKeepNone(r.type)}</div>
+      <div class="perf-count">${r.attempts}</div>
+      <div class="perf-metric ${pctClass(r.typePct.pct)}">${r.typePct.text}</div>
+      <div class="perf-metric ${pctClass(r.answerPct.pct)}">${r.answerPct.text}</div>
+    `;
+    table.appendChild(row);
+  });
+}
+
+document.getElementById('view-performance-btn').onclick = () => {
+  renderPerformance();
+  showPhase('phase-performance');
+};
+document.getElementById('performance-back-btn').onclick = () => showPhase('phase-input');
 
 function showPhase(id){
   document.querySelectorAll('.phase').forEach(p => p.classList.remove('show'));
@@ -988,6 +1117,8 @@ startBtn.onclick = async () => {
 
 // ---------- PHASE 1: guess the type ----------
 function beginTypeQuiz(){
+  currentTypeGuessCorrect = null;
+  currentAnswerCorrect = null;
   document.getElementById('plain-stimulus').textContent = (currentResult.segments || []).map(s => s.text).join(' ');
 
   const groupsEl = document.getElementById('type-groups');
@@ -1021,6 +1152,7 @@ function beginTypeQuiz(){
 
 function handleTypeGuess(chosen, btnEl){
   const correct = currentResult.question_type;
+  currentTypeGuessCorrect = (chosen === correct);
   document.querySelectorAll('.type-btn').forEach(b => b.disabled = true);
   const feedback = document.getElementById('guess-feedback');
   if(chosen === correct){
@@ -1276,6 +1408,7 @@ function handleChooseAnswer(chosenLetter, btnEl){
   const analysis = currentResult.answer_analysis || [];
   const correctEntry = analysis.find(a => a.verdict === 'correct');
   const isRight = correctEntry && correctEntry.letter === chosenLetter;
+  currentAnswerCorrect = !!isRight;
 
   document.querySelectorAll('#choose-answer-list .formula-choice-btn').forEach(b => b.disabled = true);
   const feedback = document.getElementById('choose-feedback');
@@ -1338,7 +1471,7 @@ function revealFull(){
   const p = currentResult;
   renderRevealUI(p);
   document.getElementById('back-to-history-btn').style.display = 'none';
-  addLogEntry(p);
+  addLogEntry(p, currentTypeGuessCorrect, currentAnswerCorrect);
   showPhase('phase-reveal');
 }
 
